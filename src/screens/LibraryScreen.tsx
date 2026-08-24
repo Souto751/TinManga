@@ -22,18 +22,22 @@ import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
 import { isRemoteChapterUri } from '../online/mangadex/constants';
 import { ColorTokens, fonts } from '../theme';
+import { localTrackingId, TRACKING_LABELS } from '../tracking/ids';
 import { Comic, ComicProgress, Series } from '../types';
 
-function seriesSubtitle(item: Series, progress: Record<string, ComicProgress>): string {
+function seriesSubtitle(item: Series, progress: Record<string, ComicProgress>, status?: string): string {
   const count = item.volumes.length === 1 ? '1 tomo' : `${item.volumes.length} tomos`;
   const latest = item.volumes
     .map((volume) => progress[volume.id])
     .filter((entry): entry is ComicProgress => Boolean(entry))
     .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-  if (latest?.volumeLabel) {
-    return `${count} · ${latest.volumeLabel}`;
+  const bits = [count];
+  if (status) {
+    bits.push(status);
+  } else if (latest?.volumeLabel) {
+    bits.push(latest.volumeLabel);
   }
-  return count;
+  return bits.join(' · ');
 }
 
 function seriesRatio(item: Series, progress: Record<string, ComicProgress>): number {
@@ -59,6 +63,7 @@ export function LibraryScreen() {
     coverForSeries,
     assignSeriesCover,
     clearSeriesCover,
+    upsertTracking,
     colors,
   } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -110,12 +115,40 @@ export function LibraryScreen() {
   };
 
   const seriesCoverActions = (item: Series) => {
-    Alert.alert(item.name, 'Asigná una tapa desde el teléfono o desde la carpeta de imágenes.', [
+    Alert.alert(item.name, 'Tapa y seguimiento local.', [
       {
         text: 'Elegir imagen',
         onPress: () => {
           void assignSeriesCover(item).catch((err: Error) => {
             Alert.alert('No se pudo guardar la tapa', err.message);
+          });
+        },
+      },
+      {
+        text: 'Por leer',
+        onPress: () => {
+          void upsertTracking({
+            id: localTrackingId(item.id),
+            source: 'local',
+            title: item.name,
+            coverUri: coverForSeries(item),
+            status: 'plan',
+            localSeriesId: item.id,
+            updatedAt: Date.now(),
+          });
+        },
+      },
+      {
+        text: 'Leído',
+        onPress: () => {
+          void upsertTracking({
+            id: localTrackingId(item.id),
+            source: 'local',
+            title: item.name,
+            coverUri: coverForSeries(item),
+            status: 'read',
+            localSeriesId: item.id,
+            updatedAt: Date.now(),
           });
         },
       },
@@ -134,20 +167,12 @@ export function LibraryScreen() {
 
   const header = (
     <View style={styles.header}>
-      <View style={styles.headerText}>
-        <Text style={styles.kicker} numberOfLines={1}>
-          ARCHIVO PERSONAL
-        </Text>
-        <Text style={styles.wordmark} numberOfLines={1}>
-          TINMANGAS
-        </Text>
-      </View>
-      <Pressable onPress={() => navigation.navigate('Explore')} style={[styles.iconButton, styles.exploreButton]}>
-        <Text style={styles.iconButtonLabel}>EXPLORAR</Text>
-      </Pressable>
-      <Pressable onPress={() => navigation.navigate('Settings')} style={styles.iconButton}>
-        <Text style={styles.iconButtonLabel}>AJUSTES</Text>
-      </Pressable>
+      <Text style={styles.kicker} numberOfLines={1}>
+        ARCHIVO PERSONAL
+      </Text>
+      <Text style={styles.wordmark} numberOfLines={1}>
+        TINMANGAS
+      </Text>
     </View>
   );
 
@@ -156,10 +181,7 @@ export function LibraryScreen() {
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <ScreenBackdrop />
         {header}
-        <EmptyLibrary
-          onPickFolder={() => void pickFolder()}
-          onExplore={() => navigation.navigate('Explore')}
-        />
+        <EmptyLibrary onPickFolder={() => void pickFolder()} />
       </View>
     );
   }
@@ -244,7 +266,13 @@ export function LibraryScreen() {
             <CoverCard
               id={item.id}
               title={item.name}
-              subtitle={seriesSubtitle(item, config.progress)}
+              subtitle={seriesSubtitle(
+                item,
+                config.progress,
+                config.tracking[localTrackingId(item.id)]
+                  ? TRACKING_LABELS[config.tracking[localTrackingId(item.id)].status]
+                  : undefined,
+              )}
               coverUri={coverForSeries(item)}
               progressRatio={seriesRatio(item, config.progress)}
               onPress={() => openSeries(item)}
@@ -267,14 +295,6 @@ function makeStyles(colors: ColorTokens) {
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
   },
   wordmark: {
     fontFamily: fonts.display,
@@ -289,24 +309,6 @@ function makeStyles(colors: ColorTokens) {
     letterSpacing: 2.4,
     color: colors.accent2,
     marginBottom: 2,
-  },
-  iconButton: {
-    flexShrink: 0,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  exploreButton: {
-    borderColor: colors.accent2,
-  },
-  iconButtonLabel: {
-    fontFamily: fonts.displaySemi,
-    fontSize: 12,
-    letterSpacing: 1,
-    color: colors.text,
   },
   search: {
     paddingHorizontal: 20,

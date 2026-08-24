@@ -3,8 +3,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -19,11 +19,13 @@ import { RootStackParamList } from '../navigation/types';
 import { searchManga } from '../online/mangadex/api';
 import { RemoteManga } from '../online/mangadex/types';
 import { ColorTokens, fonts } from '../theme';
+import { mangaTrackingId, TRACKING_LABELS } from '../tracking/ids';
+import { TrackingStatus } from '../types';
 
 export function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { colors } = useApp();
+  const { colors, config, upsertTracking } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -62,17 +64,24 @@ export function ExploreScreen() {
     };
   }, [debounced]);
 
+  const markManga = (item: RemoteManga, status: TrackingStatus) => {
+    void upsertTracking({
+      id: mangaTrackingId(item.id),
+      source: 'mangadex',
+      title: item.title,
+      coverUri: item.coverUri,
+      status,
+      mangaId: item.id,
+      updatedAt: Date.now(),
+    });
+  };
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScreenBackdrop />
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.back}>
-          <Text style={styles.backText}>VOLVER</Text>
-        </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.kicker}>MANGADEX</Text>
-          <Text style={styles.title}>EXPLORAR</Text>
-        </View>
+        <Text style={styles.kicker}>MANGADEX</Text>
+        <Text style={styles.title}>EXPLORAR</Text>
       </View>
       <Text style={styles.hint}>Solo lectura online. Lo descargado sigue siendo tu carpeta CBR.</Text>
       <View style={styles.search}>
@@ -107,9 +116,23 @@ export function ExploreScreen() {
               <CoverCard
                 id={item.id}
                 title={item.title}
-                subtitle={item.year ? String(item.year) : item.status || 'MangaDex'}
+                subtitle={
+                  config.tracking[mangaTrackingId(item.id)]
+                    ? TRACKING_LABELS[config.tracking[mangaTrackingId(item.id)].status]
+                    : item.year
+                      ? String(item.year)
+                      : item.status || 'MangaDex'
+                }
                 coverUri={item.coverUri}
                 onPress={() => navigation.navigate('RemoteManga', { mangaId: item.id, preview: item })}
+                onLongPress={() => {
+                  Alert.alert(item.title, 'Agregar a la lista local.', [
+                    { text: 'Por leer', onPress: () => void markManga(item, 'plan') },
+                    { text: 'Leyendo', onPress: () => void markManga(item, 'reading') },
+                    { text: 'Leído', onPress: () => void markManga(item, 'read') },
+                    { text: 'Cancelar', style: 'cancel' },
+                  ]);
+                }}
               />
             </View>
           )}
@@ -129,26 +152,6 @@ function makeStyles(colors: ColorTokens) {
       paddingHorizontal: 20,
       paddingTop: 8,
       paddingBottom: 8,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    back: {
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 8,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    backText: {
-      fontFamily: fonts.displaySemi,
-      color: colors.text,
-      fontSize: 12,
-      letterSpacing: 1,
-    },
-    headerText: {
-      flex: 1,
     },
     kicker: {
       fontFamily: fonts.displaySemi,

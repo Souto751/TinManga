@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.personal.lectorcbr",
-      "versionCode": 12,
+      "versionCode": 13,
       "adaptiveIcon": {
         "backgroundColor": "#07070E",
         "foregroundImage": "./assets/android-icon-foreground.png",

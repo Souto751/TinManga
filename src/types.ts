@@ -1,5 +1,6 @@
 export type ReadingDirection = 'rtl' | 'ltr';
 export type ColorScheme = 'dark' | 'light';
+export type TrackingStatus = 'plan' | 'reading' | 'read';
 
 export type ComicProgress = {
   page: number;
@@ -13,6 +14,17 @@ export type ComicProgress = {
   coverUri?: string;
 };
 
+export type TrackedTitle = {
+  id: string;
+  source: 'local' | 'mangadex';
+  title: string;
+  coverUri?: string;
+  status: TrackingStatus;
+  localSeriesId?: string;
+  mangaId?: string;
+  updatedAt: number;
+};
+
 export type AppConfig = {
   libraryUri: string | null;
   libraryName: string | null;
@@ -23,6 +35,7 @@ export type AppConfig = {
   keepScreenOn: boolean;
   progress: Record<string, ComicProgress>;
   seriesCovers: Record<string, string>;
+  tracking: Record<string, TrackedTitle>;
 };
 
 export type Comic = {
@@ -53,4 +66,3 @@ export type ExtractedComic = {
   pages: string[];
   coverUri?: string;
 };
-

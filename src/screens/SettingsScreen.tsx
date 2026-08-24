@@ -1,4 +1,3 @@
-import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useMemo } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -12,7 +11,6 @@ import { ColorTokens, fonts } from '../theme';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const { config, colors, pickFolder, pickCoversFolder, setReadingDirection, setColorScheme, setKeepScreenOn } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -37,12 +35,9 @@ export function SettingsScreen() {
       <ScreenBackdrop />
     <ScrollView
       style={{ paddingTop: insets.top + 8 }}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingHorizontal: 20, flexGrow: 1 }}
+      contentContainerStyle={{ paddingBottom: 28, paddingHorizontal: 20, flexGrow: 1 }}
     >
       <View style={styles.top}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.back}>
-          <Text style={styles.backText}>VOLVER</Text>
-        </Pressable>
         <Text style={styles.kicker}>CONFIG</Text>
         <Text style={styles.title}>AJUSTES</Text>
       </View>
@@ -146,8 +141,8 @@ export function SettingsScreen() {
       </Pressable>
 
       <Text style={styles.footnote}>
-        Uso personal. No hay cuenta, ni nube, ni base de datos. El progreso se guarda en lectorcbr.json
-        dentro del almacenamiento de la app.
+        Uso personal. No hay cuenta, ni nube, ni base de datos. El progreso y la lista se guardan en
+        lectorcbr.json dentro del almacenamiento de la app.
       </Text>
     </ScrollView>
     </View>
@@ -162,22 +157,6 @@ function makeStyles(colors: ColorTokens) {
   },
   top: {
     marginBottom: 24,
-  },
-  back: {
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  backText: {
-    fontFamily: fonts.displaySemi,
-    color: colors.text,
-    fontSize: 12,
-    letterSpacing: 1,
   },
   kicker: {
     fontFamily: fonts.displaySemi,

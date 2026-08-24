@@ -12,7 +12,8 @@ import { groupBySeries } from '../library/group';
 import { pickLibraryFolder, scanLibrary } from '../library/scan';
 import { loadConfig, saveConfig } from '../storage/config';
 import { ColorTokens, paletteFor } from '../theme';
-import { AppConfig, ColorScheme, Comic, ComicProgress, ReadingDirection, Series } from '../types';
+import { trackedFromComic } from '../tracking/ids';
+import { AppConfig, ColorScheme, Comic, ComicProgress, ReadingDirection, Series, TrackedTitle } from '../types';
 
 type AppContextValue = {
   ready: boolean;
@@ -30,6 +31,8 @@ type AppContextValue = {
   setKeepScreenOn: (value: boolean) => Promise<void>;
   saveProgress: (comic: Comic, page: number, total: number, coverUri?: string) => Promise<void>;
   resetProgress: (comicId: string) => Promise<void>;
+  upsertTracking: (entry: TrackedTitle) => Promise<void>;
+  removeTracking: (id: string) => Promise<void>;
   assignSeriesCover: (series: Series) => Promise<void>;
   clearSeriesCover: (seriesId: string) => Promise<void>;
   continueReading: ComicProgress | null;
@@ -51,6 +54,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     keepScreenOn: true,
     progress: {},
     seriesCovers: {},
+    tracking: {},
   });
   const [comics, setComics] = useState<Comic[]>([]);
   const [folderCovers, setFolderCovers] = useState<Record<string, string>>({});
@@ -196,12 +200,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       volumeLabel: comic.volumeLabel,
       coverUri: coverUri ?? previous?.coverUri,
     };
+    const auto = trackedFromComic(comic, 'reading', nextProgress.coverUri);
+    let tracking = current.tracking;
+    if (auto) {
+      const previousTrack = current.tracking[auto.id];
+      const nextTrack: TrackedTitle = {
+        ...auto,
+        status: previousTrack?.status === 'read' ? 'read' : 'reading',
+        coverUri: auto.coverUri ?? previousTrack?.coverUri,
+        title: auto.title || previousTrack?.title || comic.series,
+      };
+      tracking = {
+        ...current.tracking,
+        [auto.id]: nextTrack,
+      };
+    }
     await persist({
       ...current,
       progress: {
         ...current.progress,
         [comic.id]: nextProgress,
       },
+      tracking,
     });
   }, [persist]);
 
@@ -210,6 +230,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const progress = { ...current.progress };
     delete progress[comicId];
     await persist({ ...current, progress });
+  }, [persist]);
+
+  const upsertTracking = useCallback(async (entry: TrackedTitle) => {
+    const current = configRef.current;
+    const previous = current.tracking[entry.id];
+    await persist({
+      ...current,
+      tracking: {
+        ...current.tracking,
+        [entry.id]: {
+          ...previous,
+          ...entry,
+          coverUri: entry.coverUri ?? previous?.coverUri,
+          updatedAt: Date.now(),
+        },
+      },
+    });
+  }, [persist]);
+
+  const removeTracking = useCallback(async (id: string) => {
+    const current = configRef.current;
+    const tracking = { ...current.tracking };
+    delete tracking[id];
+    await persist({ ...current, tracking });
   }, [persist]);
 
   const assignSeriesCover = useCallback(async (series: Series) => {
@@ -293,6 +337,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setKeepScreenOn,
       saveProgress,
       resetProgress,
+      upsertTracking,
+      removeTracking,
       assignSeriesCover,
       clearSeriesCover,
       continueReading,
@@ -315,6 +361,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setKeepScreenOn,
       saveProgress,
       resetProgress,
+      upsertTracking,
+      removeTracking,
       assignSeriesCover,
       clearSeriesCover,
       continueReading,

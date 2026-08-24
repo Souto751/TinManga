@@ -1,11 +1,18 @@
+import { NavigatorScreenParams } from '@react-navigation/native';
+
 import { RemoteManga } from '../online/mangadex/types';
 import { Comic } from '../types';
 
-export type RootStackParamList = {
+export type MainTabParamList = {
   Library: undefined;
+  Lists: undefined;
+  Explore: undefined;
+  Settings: undefined;
+};
+
+export type RootStackParamList = {
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
   Series: { seriesId: string };
   Reader: { comic: Comic };
-  Settings: undefined;
-  Explore: undefined;
   RemoteManga: { mangaId: string; preview?: RemoteManga };
 };

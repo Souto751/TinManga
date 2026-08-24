@@ -7,10 +7,9 @@ import { HudCorners } from './HudCorners';
 
 type Props = {
   onPickFolder: () => void;
-  onExplore?: () => void;
 };
 
-export function EmptyLibrary({ onPickFolder, onExplore }: Props) {
+export function EmptyLibrary({ onPickFolder }: Props) {
   const { colors } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -26,11 +25,6 @@ export function EmptyLibrary({ onPickFolder, onExplore }: Props) {
         <Pressable onPress={onPickFolder} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
           <Text style={styles.buttonLabel}>ELEGIR CARPETA</Text>
         </Pressable>
-        {onExplore ? (
-          <Pressable onPress={onExplore} style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}>
-            <Text style={styles.ghostLabel}>EXPLORAR MANGADEX</Text>
-          </Pressable>
-        ) : null}
       </HudCorners>
     </View>
   );
@@ -51,7 +45,7 @@ function makeStyles(colors: ColorTokens) {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 12,
+      borderRadius: 0,
       alignItems: 'center',
     },
     mark: {
@@ -81,7 +75,7 @@ function makeStyles(colors: ColorTokens) {
       backgroundColor: colors.accent,
       paddingHorizontal: 22,
       paddingVertical: 14,
-      borderRadius: 8,
+      borderRadius: 0,
     },
     pressed: {
       opacity: 0.88,
@@ -90,20 +84,6 @@ function makeStyles(colors: ColorTokens) {
       fontFamily: fonts.displaySemi,
       color: '#F4F1FF',
       fontSize: 14,
-      letterSpacing: 1.2,
-    },
-    ghost: {
-      marginTop: 12,
-      paddingHorizontal: 22,
-      paddingVertical: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.accent2,
-    },
-    ghostLabel: {
-      fontFamily: fonts.displaySemi,
-      color: colors.accent2,
-      fontSize: 13,
       letterSpacing: 1.2,
     },
   });

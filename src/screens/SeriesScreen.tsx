@@ -7,9 +7,11 @@ import { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
+import { StatusChips } from '../components/StatusChips';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
 import { ColorTokens, fonts } from '../theme';
+import { localTrackingId } from '../tracking/ids';
 import { Comic, ComicProgress } from '../types';
 
 function volumeMeta(comic: Comic, progress?: ComicProgress): string {
@@ -23,7 +25,7 @@ export function SeriesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { seriesId } = useRoute<RouteProp<RootStackParamList, 'Series'>>().params;
-  const { series, config, colors, coverForSeries, assignSeriesCover, clearSeriesCover, resetProgress } = useApp();
+  const { series, config, colors, coverForSeries, assignSeriesCover, clearSeriesCover, resetProgress, upsertTracking, removeTracking } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const item = series.find((entry) => entry.id === seriesId);
 
@@ -41,6 +43,8 @@ export function SeriesScreen() {
 
   const coverUri = coverForSeries(item);
   const hasCustomCover = Boolean(config.seriesCovers[item.id] || coverUri);
+  const trackId = localTrackingId(item.id);
+  const tracked = config.tracking[trackId];
 
   const openVolume = (comic: Comic) => {
     navigation.navigate('Reader', { comic });
@@ -118,6 +122,28 @@ export function SeriesScreen() {
               {item.volumes.length === 1 ? '1 tomo' : `${item.volumes.length} tomos`}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.trackBox}>
+          <StatusChips
+            value={tracked?.status}
+            onChange={(status) => {
+              void upsertTracking({
+                id: trackId,
+                source: 'local',
+                title: item.name,
+                coverUri,
+                status,
+                localSeriesId: item.id,
+                updatedAt: Date.now(),
+              });
+            }}
+          />
+          {tracked ? (
+            <Pressable onPress={() => void removeTracking(trackId)} style={styles.removeTrack}>
+              <Text style={styles.removeTrackText}>Quitar de la lista</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <Text style={styles.section}>TOMOS</Text>
@@ -231,6 +257,19 @@ function makeStyles(colors: ColorTokens) {
     marginTop: 10,
     fontFamily: fonts.sansMedium,
     fontSize: 14,
+    color: colors.textMuted,
+  },
+  trackBox: {
+    marginTop: 18,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  removeTrack: {
+    alignSelf: 'flex-start',
+  },
+  removeTrackText: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
     color: colors.textMuted,
   },
   section: {

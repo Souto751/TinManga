@@ -7,12 +7,14 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
+import { StatusChips } from '../components/StatusChips';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
 import { getManga, listChapters } from '../online/mangadex/api';
 import { comicFromRemoteChapter } from '../online/mangadex/comic';
 import { RemoteChapter, RemoteManga } from '../online/mangadex/types';
 import { ColorTokens, fonts } from '../theme';
+import { mangaTrackingId } from '../tracking/ids';
 
 function fold(value: string): string {
   return value
@@ -26,7 +28,7 @@ export function RemoteMangaScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { mangaId, preview } = useRoute<RouteProp<RootStackParamList, 'RemoteManga'>>().params;
-  const { colors, series, config } = useApp();
+  const { colors, series, config, upsertTracking, removeTracking } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [manga, setManga] = useState<RemoteManga | null>(preview ?? null);
@@ -81,6 +83,9 @@ export function RemoteMangaScreen() {
     navigation.navigate('Reader', { comic: comicFromRemoteChapter(manga, chapter) });
   };
 
+  const trackId = mangaTrackingId(mangaId);
+  const tracked = config.tracking[trackId];
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
       <ScreenBackdrop />
@@ -108,6 +113,31 @@ export function RemoteMangaScreen() {
                 .join(' · ')}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.trackBox}>
+          <StatusChips
+            value={tracked?.status}
+            onChange={(status) => {
+              if (!manga) {
+                return;
+              }
+              void upsertTracking({
+                id: trackId,
+                source: 'mangadex',
+                title: manga.title,
+                coverUri: manga.coverUri,
+                status,
+                mangaId: manga.id,
+                updatedAt: Date.now(),
+              });
+            }}
+          />
+          {tracked ? (
+            <Pressable onPress={() => void removeTracking(trackId)} style={styles.removeTrack}>
+              <Text style={styles.removeTrackText}>Quitar de la lista</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {localHit ? (
@@ -230,6 +260,19 @@ function makeStyles(colors: ColorTokens) {
       marginTop: 10,
       fontFamily: fonts.sansMedium,
       fontSize: 13,
+      color: colors.textMuted,
+    },
+    trackBox: {
+      marginTop: 18,
+      paddingHorizontal: 20,
+      gap: 8,
+    },
+    removeTrack: {
+      alignSelf: 'flex-start',
+    },
+    removeTrackText: {
+      fontFamily: fonts.sans,
+      fontSize: 12,
       color: colors.textMuted,
     },
     localBanner: {

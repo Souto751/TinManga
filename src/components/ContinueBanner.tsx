@@ -50,7 +50,7 @@ function makeStyles(colors: ColorTokens) {
     wrap: {
       flexDirection: 'row',
       backgroundColor: colors.surface,
-      borderRadius: radius.md,
+      borderRadius: 0,
       borderWidth: 1,
       borderColor: colors.border,
       overflow: 'visible',

@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { AppConfig } from '../types';
+import { seedTracking } from '../tracking/ids';
 
 const defaultConfig = (): AppConfig => ({
   libraryUri: null,
@@ -12,6 +13,7 @@ const defaultConfig = (): AppConfig => ({
   keepScreenOn: true,
   progress: {},
   seriesCovers: {},
+  tracking: {},
 });
 
 function configFile(): File {
@@ -32,13 +34,19 @@ export async function loadConfig(): Promise<AppConfig> {
 
   try {
     const parsed = JSON.parse(await file.text()) as Partial<AppConfig>;
-    return {
+    const progress = parsed.progress ?? {};
+    const next: AppConfig = {
       ...defaultConfig(),
       ...parsed,
       colorScheme: parsed.colorScheme === 'light' ? 'light' : 'dark',
-      progress: parsed.progress ?? {},
+      progress,
       seriesCovers: parsed.seriesCovers ?? {},
+      tracking: parsed.tracking ?? seedTracking(progress),
     };
+    if (!parsed.tracking) {
+      await saveConfig(next);
+    }
+    return next;
   } catch {
     return defaultConfig();
   }
