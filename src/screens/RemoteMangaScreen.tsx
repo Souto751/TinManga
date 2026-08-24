@@ -34,7 +34,7 @@ export function RemoteMangaScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { mangaId, preview } = useRoute<RouteProp<RootStackParamList, 'RemoteManga'>>().params;
-  const { colors, series, config, upsertTracking, removeTracking, markComicsRead } = useApp();
+  const { colors, series, config, upsertTracking, removeTracking, markComicsRead, setReadingQueue } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [manga, setManga] = useState<RemoteManga | null>(preview ?? null);
@@ -101,6 +101,11 @@ export function RemoteMangaScreen() {
     if (!manga) {
       return;
     }
+    setReadingQueue(
+      [...chapters]
+        .sort((a, b) => chapterSortValue(a) - chapterSortValue(b))
+        .map((item) => comicFromRemoteChapter(manga, item)),
+    );
     navigation.navigate('Reader', { comic: comicFromRemoteChapter(manga, chapter) });
   };
 

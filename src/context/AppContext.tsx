@@ -39,6 +39,8 @@ type AppContextValue = {
   continueReading: ComicProgress | null;
   coverFor: (comicId: string, fallback?: string) => string | undefined;
   coverForSeries: (series: Series) => string | undefined;
+  readingQueue: Comic[];
+  setReadingQueue: (comics: Comic[]) => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -61,6 +63,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [folderCovers, setFolderCovers] = useState<Record<string, string>>({});
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [readingQueue, setReadingQueue] = useState<Comic[]>([]);
 
   const configRef = useRef(config);
   configRef.current = config;
@@ -394,6 +397,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       continueReading,
       coverFor,
       coverForSeries,
+      readingQueue,
+      setReadingQueue,
     }),
     [
       ready,
@@ -419,6 +424,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       continueReading,
       coverFor,
       coverForSeries,
+      readingQueue,
     ],
   );
 

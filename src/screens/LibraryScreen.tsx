@@ -65,6 +65,7 @@ export function LibraryScreen() {
     clearSeriesCover,
     upsertTracking,
     removeTracking,
+    setReadingQueue,
     colors,
   } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -79,6 +80,8 @@ export function LibraryScreen() {
   }, [series, query]);
 
   const openComic = (comic: Comic) => {
+    const parent = series.find((item) => item.volumes.some((volume) => volume.id === comic.id));
+    setReadingQueue(parent ? parent.volumes : [comic]);
     navigation.navigate('Reader', { comic });
   };
 

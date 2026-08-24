@@ -25,7 +25,7 @@ export function SeriesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { seriesId } = useRoute<RouteProp<RootStackParamList, 'Series'>>().params;
-  const { series, config, colors, coverForSeries, assignSeriesCover, clearSeriesCover, resetProgress, upsertTracking, removeTracking } = useApp();
+  const { series, config, colors, coverForSeries, assignSeriesCover, clearSeriesCover, resetProgress, upsertTracking, removeTracking, setReadingQueue } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const item = series.find((entry) => entry.id === seriesId);
 
@@ -47,6 +47,7 @@ export function SeriesScreen() {
   const tracked = config.tracking[trackId];
 
   const openVolume = (comic: Comic) => {
+    setReadingQueue(item.volumes);
     navigation.navigate('Reader', { comic });
   };
 
