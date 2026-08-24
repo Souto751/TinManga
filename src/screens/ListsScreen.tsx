@@ -90,6 +90,19 @@ export function ListsScreen() {
     ]);
   };
 
+  const confirmRemove = (entry: TrackedTitle) => {
+    Alert.alert(entry.title, '¿Lo sacás de la lista? El progreso de lectura no se borra.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Quitar',
+        style: 'destructive',
+        onPress: () => {
+          void removeTracking(entry.id);
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScreenBackdrop />
@@ -98,7 +111,7 @@ export function ListsScreen() {
         <Text style={styles.title}>LISTA</Text>
       </View>
       <Text style={styles.hint}>
-        Por leer, leyendo y leído. Se guarda en el teléfono, sin cuenta.
+        Por leer, leyendo y leído. Tocá la tapa para abrir; QUITAR lo saca de la lista.
       </Text>
       <View style={styles.filters}>
         {FILTERS.map((item) => {
@@ -143,6 +156,9 @@ export function ListsScreen() {
               onPress={() => openEntry(item)}
               onLongPress={() => editEntry(item)}
             />
+            <Pressable onPress={() => confirmRemove(item)} style={styles.remove}>
+              <Text style={styles.removeText}>QUITAR</Text>
+            </Pressable>
           </View>
         )}
       />
@@ -215,6 +231,20 @@ function makeStyles(colors: ColorTokens) {
     cell: {
       flex: 1,
       maxWidth: '50%',
+    },
+    remove: {
+      marginTop: 8,
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    removeText: {
+      fontFamily: fonts.displaySemi,
+      fontSize: 11,
+      letterSpacing: 1.2,
+      color: colors.accent,
     },
     empty: {
       fontFamily: fonts.sans,

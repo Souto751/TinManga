@@ -64,6 +64,7 @@ export function LibraryScreen() {
     assignSeriesCover,
     clearSeriesCover,
     upsertTracking,
+    removeTracking,
     colors,
   } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -152,6 +153,15 @@ export function LibraryScreen() {
           });
         },
       },
+      config.tracking[localTrackingId(item.id)]
+        ? {
+            text: 'Quitar de la lista',
+            style: 'destructive' as const,
+            onPress: () => {
+              void removeTracking(localTrackingId(item.id));
+            },
+          }
+        : undefined,
       config.seriesCovers[item.id]
         ? {
             text: 'Quitar tapa',
