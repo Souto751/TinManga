@@ -40,3 +40,10 @@ yarn-error.*
 /ios
 /android
 .expo-export/
+
+# APKs de sideload (binarios grandes)
+*.apk
+
+# Build de módulos nativos locales
+modules/**/android/build/
+modules/**/android/.cxx/

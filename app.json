@@ -1,17 +1,27 @@
 {
   "expo": {
-    "name": "LectorCBR",
-    "slug": "LectorCBR",
+    "name": "TinMangas",
+    "slug": "tinmangas",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "androidStatusBar": {
+      "backgroundColor": "#07070E",
+      "barStyle": "light-content"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#07070E",
+      "barStyle": "light-content"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.personal.lectorcbr",
+      "versionCode": 10,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#07070E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
