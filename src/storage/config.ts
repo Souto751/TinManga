@@ -14,6 +14,7 @@ const defaultConfig = (): AppConfig => ({
   progress: {},
   seriesCovers: {},
   tracking: {},
+  updateDismissedVersionCode: null,
 });
 
 function configFile(): File {
@@ -42,6 +43,7 @@ export async function loadConfig(): Promise<AppConfig> {
       progress,
       seriesCovers: parsed.seriesCovers ?? {},
       tracking: parsed.tracking ?? seedTracking(progress),
+      updateDismissedVersionCode: parsed.updateDismissedVersionCode ?? null,
     };
     if (!parsed.tracking) {
       await saveConfig(next);

@@ -14,6 +14,9 @@ import { loadConfig, saveConfig } from '../storage/config';
 import { ColorTokens, paletteFor } from '../theme';
 import { trackedFromComic } from '../tracking/ids';
 import { AppConfig, ColorScheme, Comic, ComicProgress, ReadingDirection, Series, TrackedTitle } from '../types';
+import { checkForUpdate, downloadUpdate, installUpdate, UpdateCheckResult, UpdateInfo } from '../update/updater';
+
+export type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'up-to-date';
 
 type AppContextValue = {
   ready: boolean;
@@ -41,6 +44,12 @@ type AppContextValue = {
   coverForSeries: (series: Series) => string | undefined;
   readingQueue: Comic[];
   setReadingQueue: (comics: Comic[]) => void;
+  updateInfo: UpdateInfo | null;
+  updateState: UpdateState;
+  updateError: string | null;
+  checkForUpdates: (opts?: { manual?: boolean }) => Promise<UpdateCheckResult>;
+  installAvailableUpdate: () => Promise<void>;
+  dismissUpdate: () => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -58,12 +67,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     progress: {},
     seriesCovers: {},
     tracking: {},
+    updateDismissedVersionCode: null,
   });
   const [comics, setComics] = useState<Comic[]>([]);
   const [folderCovers, setFolderCovers] = useState<Record<string, string>>({});
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [readingQueue, setReadingQueue] = useState<Comic[]>([]);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateState, setUpdateState] = useState<UpdateState>('idle');
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   const configRef = useRef(config);
   configRef.current = config;
@@ -340,6 +353,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist({ ...current, seriesCovers });
   }, [persist]);
 
+  const checkForUpdates = useCallback(async (opts?: { manual?: boolean }): Promise<UpdateCheckResult> => {
+    setUpdateState('checking');
+    setUpdateError(null);
+    const result = await checkForUpdate();
+    if (result.status === 'available') {
+      const alreadyDismissed =
+        !opts?.manual && configRef.current.updateDismissedVersionCode === result.info.versionCode;
+      if (alreadyDismissed) {
+        setUpdateInfo(null);
+        setUpdateState('idle');
+        return result;
+      }
+      setUpdateInfo(result.info);
+      setUpdateState('available');
+    } else if (result.status === 'up-to-date') {
+      setUpdateInfo(null);
+      setUpdateState('up-to-date');
+    } else {
+      setUpdateInfo(null);
+      setUpdateError(result.message);
+      setUpdateState('error');
+    }
+    return result;
+  }, []);
+
+  const installAvailableUpdate = useCallback(async () => {
+    if (!updateInfo) {
+      return;
+    }
+    setUpdateError(null);
+    setUpdateState('downloading');
+    try {
+      const file = await downloadUpdate(updateInfo);
+      setUpdateState('installing');
+      await installUpdate(file);
+      setUpdateState('idle');
+      setUpdateInfo(null);
+    } catch (err) {
+      setUpdateError(err instanceof Error ? err.message : 'No se pudo instalar la actualización.');
+      setUpdateState('error');
+    }
+  }, [updateInfo]);
+
+  const dismissUpdate = useCallback(async () => {
+    if (updateInfo) {
+      await persist({ ...configRef.current, updateDismissedVersionCode: updateInfo.versionCode });
+    }
+    setUpdateInfo(null);
+    setUpdateState('idle');
+  }, [updateInfo, persist]);
+
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    void checkForUpdates();
+  }, [ready, checkForUpdates]);
+
   const series = useMemo(() => groupBySeries(comics), [comics]);
 
   const continueReading = useMemo(() => {
@@ -399,6 +470,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       coverForSeries,
       readingQueue,
       setReadingQueue,
+      updateInfo,
+      updateState,
+      updateError,
+      checkForUpdates,
+      installAvailableUpdate,
+      dismissUpdate,
     }),
     [
       ready,
@@ -425,6 +502,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       coverFor,
       coverForSeries,
       readingQueue,
+      updateInfo,
+      updateState,
+      updateError,
+      checkForUpdates,
+      installAvailableUpdate,
+      dismissUpdate,
     ],
   );
 

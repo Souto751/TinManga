@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppProvider, useApp } from './src/context/AppContext';
+import { UpdateBanner } from './src/components/UpdateBanner';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { colors as darkColors } from './src/theme';
 
@@ -23,7 +24,10 @@ function Gate() {
     <View style={[styles.flex, { backgroundColor: colors.bg }]}>
       <StatusBar style={config.colorScheme === 'light' ? 'dark' : 'light'} />
       {ready ? (
-        <RootNavigator />
+        <>
+          <RootNavigator />
+          <UpdateBanner />
+        </>
       ) : (
         <View style={styles.boot}>
           <ActivityIndicator color={colors.accent2} />

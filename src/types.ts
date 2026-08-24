@@ -37,6 +37,8 @@ export type AppConfig = {
   progress: Record<string, ComicProgress>;
   seriesCovers: Record<string, string>;
   tracking: Record<string, TrackedTitle>;
+  /** versionCode de una actualización que el usuario cerró a mano (no se vuelve a avisar sola). */
+  updateDismissedVersionCode: number | null;
 };
 
 export type Comic = {

@@ -8,11 +8,34 @@ import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { useApp } from '../context/AppContext';
 import { friendlyFolderName } from '../library/scan';
 import { ColorTokens, fonts } from '../theme';
+import { currentVersionName } from '../update/updater';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { config, colors, pickFolder, pickCoversFolder, setReadingDirection, setColorScheme, setKeepScreenOn } = useApp();
+  const {
+    config,
+    colors,
+    pickFolder,
+    pickCoversFolder,
+    setReadingDirection,
+    setColorScheme,
+    setKeepScreenOn,
+    updateState,
+    checkForUpdates,
+  } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const checkUpdatesNow = () => {
+    void checkForUpdates({ manual: true }).then((result) => {
+      // Si hay actualización aparece el banner solo; acá solo avisamos
+      // cuando no hay nada que mostrar, para que el botón no se sienta roto.
+      if (result.status === 'up-to-date') {
+        Alert.alert('Estás al día', 'Ya tenés la última versión instalada.');
+      } else if (result.status === 'error') {
+        Alert.alert('No se pudo chequear', result.message);
+      }
+    });
+  };
 
   const clearCache = () => {
     Alert.alert(
@@ -134,6 +157,20 @@ export function SettingsScreen() {
           Explorar busca y abre capítulos en MangaDex. No se descargan a la carpeta CBR; tu biblioteca
           local sigue siendo la de siempre.
         </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Actualizaciones</Text>
+        <Text style={styles.value}>Versión {currentVersionName()}</Text>
+        <Text style={styles.hint}>
+          Al abrir la app se fija sola si hay una versión nueva publicada en GitHub. Si querés, también podés
+          buscarla a mano.
+        </Text>
+        <Pressable onPress={checkUpdatesNow} style={styles.button} disabled={updateState === 'checking'}>
+          <Text style={styles.buttonText}>
+            {updateState === 'checking' ? 'Buscando…' : 'Buscar actualizaciones'}
+          </Text>
+        </Pressable>
       </View>
 
       <Pressable onPress={clearCache} style={styles.ghost}>

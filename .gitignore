@@ -47,3 +47,7 @@ yarn-error.*
 # Build de módulos nativos locales
 modules/**/android/build/
 modules/**/android/.cxx/
+
+# Keystores / secretos de firma (no van al repo, ver RELEASES.md)
+*.keystore
+keystore.b64
