@@ -31,6 +31,7 @@ type AppContextValue = {
   setKeepScreenOn: (value: boolean) => Promise<void>;
   saveProgress: (comic: Comic, page: number, total: number, coverUri?: string) => Promise<void>;
   resetProgress: (comicId: string) => Promise<void>;
+  markComicsRead: (comics: Comic[], read: boolean) => Promise<void>;
   upsertTracking: (entry: TrackedTitle) => Promise<void>;
   removeTracking: (id: string) => Promise<void>;
   assignSeriesCover: (series: Series) => Promise<void>;
@@ -199,6 +200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       seriesId: comic.seriesId,
       volumeLabel: comic.volumeLabel,
       coverUri: coverUri ?? previous?.coverUri,
+      completed: total > 0 && page >= total - 1,
     };
     const auto = trackedFromComic(comic, 'reading', nextProgress.coverUri);
     let tracking = current.tracking;
@@ -230,6 +232,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const progress = { ...current.progress };
     delete progress[comicId];
     await persist({ ...current, progress });
+  }, [persist]);
+
+  const markComicsRead = useCallback(async (comics: Comic[], read: boolean) => {
+    if (comics.length === 0) {
+      return;
+    }
+    const current = configRef.current;
+    const progress = { ...current.progress };
+    const now = Date.now();
+    for (const comic of comics) {
+      if (!read) {
+        delete progress[comic.id];
+        continue;
+      }
+      const previous = progress[comic.id];
+      progress[comic.id] = {
+        page: 99999,
+        total: Math.max(previous?.total ?? 1, 1),
+        updatedAt: comics.length > 1 ? previous?.updatedAt ?? 1 : now,
+        uri: comic.uri,
+        name: comic.displayName,
+        series: comic.series,
+        seriesId: comic.seriesId,
+        volumeLabel: comic.volumeLabel,
+        coverUri: comic.coverUri ?? previous?.coverUri,
+        completed: true,
+      };
+    }
+    let tracking = current.tracking;
+    if (read) {
+      const auto = trackedFromComic(comics[0], 'reading', comics[0].coverUri);
+      if (auto) {
+        const previousTrack = current.tracking[auto.id];
+        tracking = {
+          ...current.tracking,
+          [auto.id]: {
+            ...auto,
+            ...previousTrack,
+            status: previousTrack?.status === 'read' ? 'read' : 'reading',
+            coverUri: auto.coverUri ?? previousTrack?.coverUri,
+            title: auto.title || previousTrack?.title,
+            updatedAt: now,
+          },
+        };
+      }
+    }
+    await persist({ ...current, progress, tracking });
   }, [persist]);
 
   const upsertTracking = useCallback(async (entry: TrackedTitle) => {
@@ -337,6 +386,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setKeepScreenOn,
       saveProgress,
       resetProgress,
+      markComicsRead,
       upsertTracking,
       removeTracking,
       assignSeriesCover,
@@ -361,6 +411,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setKeepScreenOn,
       saveProgress,
       resetProgress,
+      markComicsRead,
       upsertTracking,
       removeTracking,
       assignSeriesCover,

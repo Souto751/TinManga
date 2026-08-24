@@ -12,6 +12,7 @@ export type ComicProgress = {
   seriesId?: string;
   volumeLabel?: string;
   coverUri?: string;
+  completed?: boolean;
 };
 
 export type TrackedTitle = {

@@ -174,15 +174,16 @@ export async function listChapters(mangaId: string): Promise<RemoteChapter[]> {
   const collected: RemoteChapter[] = [];
   let offset = 0;
   const pageSize = 100;
+  const maxOffset = 10000;
 
-  while (offset < 300) {
+  while (offset < maxOffset) {
     const payload = await mdGet<FeedPayload>(`/manga/${mangaId}/feed`, {
       limit: String(pageSize),
       offset: String(offset),
       'translatedLanguage[]': LANGS,
-      'order[volume]': 'asc',
       'order[chapter]': 'asc',
-      'contentRating[]': ['safe', 'suggestive'],
+      'order[volume]': 'asc',
+      'contentRating[]': ['safe', 'suggestive', 'erotica', 'pornographic'],
     });
     collected.push(
       ...payload.data.map((entry) => ({
@@ -196,20 +197,26 @@ export async function listChapters(mangaId: string): Promise<RemoteChapter[]> {
       })),
     );
     offset += pageSize;
-    if (!payload.data.length || collected.length >= (payload.total ?? 0)) {
+    const total = payload.total ?? collected.length;
+    if (!payload.data.length || collected.length >= total || offset >= total) {
       break;
     }
   }
 
-  const seen = new Set<string>();
-  return collected.filter((chapter) => {
-    const key = `${chapter.volume}-${chapter.chapter}-${chapter.language}`;
-    if (seen.has(key)) {
-      return false;
+  const best = new Map<string, RemoteChapter>();
+  for (const chapter of collected) {
+    const key = `${chapter.chapter}-${chapter.language}`;
+    const previous = best.get(key);
+    if (!previous || chapter.pages > previous.pages) {
+      best.set(key, chapter);
     }
-    seen.add(key);
-    return true;
-  });
+  }
+  return [...best.values()].sort((a, b) => chapterSortValue(a) - chapterSortValue(b));
+}
+
+export function chapterSortValue(chapter: RemoteChapter): number {
+  const parsed = Number.parseFloat(chapter.chapter.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 }
 
 type AtHomePayload = {
