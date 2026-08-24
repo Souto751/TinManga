@@ -3,8 +3,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 
 import { useApp } from '../context/AppContext';
+import { ExploreScreen } from '../screens/ExploreScreen';
 import { LibraryScreen } from '../screens/LibraryScreen';
 import { ReaderScreen } from '../screens/ReaderScreen';
+import { RemoteMangaScreen } from '../screens/RemoteMangaScreen';
 import { SeriesScreen } from '../screens/SeriesScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { RootStackParamList } from './types';
@@ -32,6 +34,8 @@ export function RootNavigator() {
     <NavigationContainer theme={theme}>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
         <Stack.Screen name="Library" component={LibraryScreen} />
+        <Stack.Screen name="Explore" component={ExploreScreen} />
+        <Stack.Screen name="RemoteManga" component={RemoteMangaScreen} />
         <Stack.Screen name="Series" component={SeriesScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen

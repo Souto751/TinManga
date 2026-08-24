@@ -1,6 +1,5 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import Slider from '@react-native-community/slider';
-import { Image } from 'expo-image';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +18,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { openComic } from '../archive/extract';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
+import { getChapterPages } from '../online/mangadex/api';
+import { isRemoteChapterUri, remoteChapterId } from '../online/mangadex/constants';
+import { ReaderPage } from '../reader/ReaderPage';
+import { pagesAround, prefetchPageUrls, resetPagePrefetch, waitWithTimeout } from '../reader/prefetchPages';
 import { ColorTokens, fonts } from '../theme';
 
 export function ReaderScreen() {
@@ -44,6 +47,23 @@ export function ReaderScreen() {
 
   const rtl = config.readingDirection === 'rtl';
   rtlRef.current = rtl;
+  const remote = isRemoteChapterUri(comic.uri);
+
+  const openRemoteChapter = async () => {
+    const chapterId = remoteChapterId(comic.uri);
+    if (!chapterId) {
+      throw new Error('Capítulo remoto inválido.');
+    }
+    setStatus('Pidiendo páginas a MangaDex…');
+    setRatio(0.35);
+    const pages = await getChapterPages(chapterId);
+    if (pages.length === 0) {
+      throw new Error('Este capítulo no tiene páginas públicas.');
+    }
+    setStatus('Listo');
+    setRatio(1);
+    return { pages, coverUri: comic.coverUri };
+  };
 
   useEffect(() => {
     pageRef.current = page;
@@ -64,20 +84,34 @@ export function ReaderScreen() {
 
     (async () => {
       try {
-        const extracted = await openComic(comic, (message, nextRatio) => {
-          if (!cancelled) {
-            setStatus(message);
-            setRatio(nextRatio);
-          }
-        });
+        resetPagePrefetch();
+        const extracted = isRemoteChapterUri(comic.uri)
+          ? await openRemoteChapter()
+          : await openComic(comic, (message, nextRatio) => {
+              if (!cancelled) {
+                setStatus(message);
+                setRatio(nextRatio);
+              }
+            });
+        if (cancelled) {
+          return;
+        }
+        const initial = Math.min(savedPage.current, Math.max(extracted.pages.length - 1, 0));
+        if (!cancelled) {
+          setStatus('Precargando páginas…');
+          setRatio(0.78);
+        }
+        await waitWithTimeout(
+          prefetchPageUrls(pagesAround(extracted.pages, initial, 0, 2), isRemoteChapterUri(comic.uri)),
+          2500,
+        );
         if (cancelled) {
           return;
         }
         setPages(extracted.pages);
-        const initial = Math.min(savedPage.current, Math.max(extracted.pages.length - 1, 0));
         setPage(initial);
         pageRef.current = initial;
-        await saveProgress(comic, initial, extracted.pages.length, extracted.coverUri);
+        await saveProgress(comic, initial, extracted.pages.length, extracted.coverUri ?? comic.coverUri);
         setLoading(false);
         setTimeout(() => {
           if (!cancelled) {
@@ -112,6 +146,13 @@ export function ReaderScreen() {
   const persistPageRef = useRef(persistPage);
   persistPageRef.current = persistPage;
 
+  useEffect(() => {
+    if (loading || pages.length === 0) {
+      return;
+    }
+    void prefetchPageUrls(pagesAround(pages, page, 1, 5), remote);
+  }, [loading, pages, page, remote]);
+
   const goTo = useCallback(
     (next: number, haptic = true) => {
       if (pages.length === 0) {
@@ -138,15 +179,34 @@ export function ReaderScreen() {
     setUiVisible(true);
   };
 
-  const handleTap = (x: number) => {
-    const zone = x / width;
-    if (zone > 0.33 && zone < 0.67) {
-      setUiVisible((visible) => !visible);
-      return;
-    }
-    const nextSide = rtl ? zone < 0.33 : zone > 0.67;
-    goTo(pageRef.current + (nextSide ? 1 : -1));
-  };
+  const handleTap = useCallback(
+    (x: number) => {
+      const zone = x / width;
+      if (zone > 0.33 && zone < 0.67) {
+        setUiVisible((visible) => !visible);
+        return;
+      }
+      const nextSide = rtlRef.current ? zone < 0.33 : zone > 0.67;
+      goTo(pageRef.current + (nextSide ? 1 : -1));
+    },
+    [goTo, width],
+  );
+
+  const onTapRef = useRef(handleTap);
+  onTapRef.current = handleTap;
+
+  const renderPage = useCallback(
+    ({ item }: { item: string }) => (
+      <ReaderPage
+        uri={item}
+        width={width}
+        height={height}
+        remote={remote}
+        onTap={(x) => onTapRef.current(x)}
+      />
+    ),
+    [width, height, remote],
+  );
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
     const index = viewableItems[0]?.index;
@@ -177,7 +237,7 @@ export function ReaderScreen() {
     return (
       <View style={styles.center}>
         <StatusBar hidden />
-        <Text style={styles.loadingKicker}>CARGANDO TOMO</Text>
+        <Text style={styles.loadingKicker}>{remote ? 'CARGANDO CAPÍTULO' : 'CARGANDO TOMO'}</Text>
         <Text style={styles.loadingTitle} numberOfLines={2}>
           {comic.series ? `${comic.series}\n${comic.volumeLabel}` : comic.displayName}
         </Text>
@@ -216,9 +276,11 @@ export function ReaderScreen() {
         initialScrollIndex={Math.min(page, Math.max(pages.length - 1, 0))}
         getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
         keyExtractor={(item) => item}
-        windowSize={3}
-        maxToRenderPerBatch={2}
-        initialNumToRender={2}
+        windowSize={5}
+        maxToRenderPerBatch={3}
+        initialNumToRender={3}
+        updateCellsBatchingPeriod={16}
+        removeClippedSubviews={false}
         showsHorizontalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 55 }}
@@ -234,14 +296,7 @@ export function ReaderScreen() {
         onScrollToIndexFailed={({ index }) => {
           setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 80);
         }}
-        renderItem={({ item }) => (
-          <Pressable
-            style={{ width, height, backgroundColor: '#000' }}
-            onPress={(event) => handleTap(event.nativeEvent.locationX)}
-          >
-            <Image source={{ uri: item }} style={{ width, height }} contentFit="contain" />
-          </Pressable>
-        )}
+        renderItem={renderPage}
       />
 
       {uiVisible ? (

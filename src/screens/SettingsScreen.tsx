@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { useMemo } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,7 +25,7 @@ export function SettingsScreen() {
         {
           text: 'Limpiar',
           onPress: () => {
-            void clearPageCache();
+            void Promise.all([clearPageCache(), Image.clearDiskCache(), Image.clearMemoryCache()]);
           },
         },
       ],
@@ -129,6 +130,15 @@ export function SettingsScreen() {
           trackColor={{ false: colors.border, true: colors.accent }}
           thumbColor={colors.gold}
         />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>MangaDex</Text>
+        <Text style={styles.value}>Solo lectura online</Text>
+        <Text style={styles.hint}>
+          Explorar busca y abre capítulos en MangaDex. No se descargan a la carpeta CBR; tu biblioteca
+          local sigue siendo la de siempre.
+        </Text>
       </View>
 
       <Pressable onPress={clearCache} style={styles.ghost}>

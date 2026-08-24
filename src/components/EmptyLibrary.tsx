@@ -7,9 +7,10 @@ import { HudCorners } from './HudCorners';
 
 type Props = {
   onPickFolder: () => void;
+  onExplore?: () => void;
 };
 
-export function EmptyLibrary({ onPickFolder }: Props) {
+export function EmptyLibrary({ onPickFolder, onExplore }: Props) {
   const { colors } = useApp();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -25,6 +26,11 @@ export function EmptyLibrary({ onPickFolder }: Props) {
         <Pressable onPress={onPickFolder} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
           <Text style={styles.buttonLabel}>ELEGIR CARPETA</Text>
         </Pressable>
+        {onExplore ? (
+          <Pressable onPress={onExplore} style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}>
+            <Text style={styles.ghostLabel}>EXPLORAR MANGADEX</Text>
+          </Pressable>
+        ) : null}
       </HudCorners>
     </View>
   );
@@ -84,6 +90,20 @@ function makeStyles(colors: ColorTokens) {
       fontFamily: fonts.displaySemi,
       color: '#F4F1FF',
       fontSize: 14,
+      letterSpacing: 1.2,
+    },
+    ghost: {
+      marginTop: 12,
+      paddingHorizontal: 22,
+      paddingVertical: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.accent2,
+    },
+    ghostLabel: {
+      fontFamily: fonts.displaySemi,
+      color: colors.accent2,
+      fontSize: 13,
       letterSpacing: 1.2,
     },
   });

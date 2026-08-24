@@ -20,6 +20,7 @@ import { EmptyLibrary } from '../components/EmptyLibrary';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
+import { isRemoteChapterUri } from '../online/mangadex/constants';
 import { ColorTokens, fonts } from '../theme';
 import { Comic, ComicProgress, Series } from '../types';
 
@@ -83,12 +84,14 @@ export function LibraryScreen() {
     if (!continueReading) {
       return;
     }
-    const match = comics.find(
-      (comic) => comic.uri === continueReading.uri || comic.id === continueReading.uri,
-    );
-    if (match) {
-      openComic(match);
-      return;
+    if (!isRemoteChapterUri(continueReading.uri)) {
+      const match = comics.find(
+        (comic) => comic.uri === continueReading.uri || comic.id === continueReading.uri,
+      );
+      if (match) {
+        openComic(match);
+        return;
+      }
     }
     openComic({
       id: Object.entries(config.progress).find(([, value]) => value === continueReading)?.[0] ?? continueReading.uri,
@@ -99,9 +102,10 @@ export function LibraryScreen() {
       extension: '',
       series: continueReading.series || continueReading.name,
       seriesId: continueReading.seriesId || '',
-      seriesKey: '',
+      seriesKey: continueReading.seriesId || '',
       volumeLabel: continueReading.volumeLabel || continueReading.name,
       displayName: continueReading.name,
+      coverUri: continueReading.coverUri,
     });
   };
 
@@ -128,11 +132,34 @@ export function LibraryScreen() {
     ].filter(Boolean) as { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[]);
   };
 
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.headerText}>
+        <Text style={styles.kicker} numberOfLines={1}>
+          ARCHIVO PERSONAL
+        </Text>
+        <Text style={styles.wordmark} numberOfLines={1}>
+          TINMANGAS
+        </Text>
+      </View>
+      <Pressable onPress={() => navigation.navigate('Explore')} style={[styles.iconButton, styles.exploreButton]}>
+        <Text style={styles.iconButtonLabel}>EXPLORAR</Text>
+      </Pressable>
+      <Pressable onPress={() => navigation.navigate('Settings')} style={styles.iconButton}>
+        <Text style={styles.iconButtonLabel}>AJUSTES</Text>
+      </Pressable>
+    </View>
+  );
+
   if (!config.libraryUri) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <ScreenBackdrop />
-        <EmptyLibrary onPickFolder={() => void pickFolder()} />
+        {header}
+        <EmptyLibrary
+          onPickFolder={() => void pickFolder()}
+          onExplore={() => navigation.navigate('Explore')}
+        />
       </View>
     );
   }
@@ -152,19 +179,7 @@ export function LibraryScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScreenBackdrop />
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.kicker} numberOfLines={1}>
-            ARCHIVO PERSONAL
-          </Text>
-          <Text style={styles.wordmark} numberOfLines={1}>
-            TINMANGAS
-          </Text>
-        </View>
-        <Pressable onPress={() => navigation.navigate('Settings')} style={styles.iconButton}>
-          <Text style={styles.iconButtonLabel}>AJUSTES</Text>
-        </Pressable>
-      </View>
+      {header}
 
       <View style={styles.search}>
         <TextInput
@@ -283,6 +298,9 @@ function makeStyles(colors: ColorTokens) {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.accent,
+  },
+  exploreButton: {
+    borderColor: colors.accent2,
   },
   iconButtonLabel: {
     fontFamily: fonts.displaySemi,

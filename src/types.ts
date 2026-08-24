@@ -38,6 +38,7 @@ export type Comic = {
   volume?: number;
   volumeLabel: string;
   displayName: string;
+  coverUri?: string;
 };
 
 export type Series = {
