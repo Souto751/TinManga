@@ -55,6 +55,12 @@ export function ReaderScreen() {
   const [error, setError] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
   const [sentinel, setSentinel] = useState<'prev' | 'next' | null>(null);
+  const [scrubPage, setScrubPage] = useState<number | null>(null);
+  // Mientras el dedo está tocando la barra de abajo (el slider), se
+  // deshabilita el scroll horizontal del lector. Sin esto, a veces un toque
+  // en la barra se interpretaba como un arrastre sobre las páginas y
+  // terminaba cambiando de página por scroll en lugar de mover el slider.
+  const [barTouching, setBarTouching] = useState(false);
 
   const rtl = config.readingDirection === 'rtl';
   rtlRef.current = rtl;
@@ -448,7 +454,7 @@ export function ReaderScreen() {
         horizontal
         pagingEnabled
         inverted={rtl}
-        scrollEnabled={!zoomed}
+        scrollEnabled={!zoomed && !barTouching}
         initialScrollIndex={Math.min(page, Math.max(pages.length - 1, 0)) + 1}
         getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
         keyExtractor={(item, index) => (item === PREV || item === NEXT ? item : `${index}:${item}`)}
@@ -461,9 +467,13 @@ export function ReaderScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 55 }}
         onMomentumScrollEnd={(event) => {
-          const raw = Math.round(event.nativeEvent.contentOffset.x / width);
-          const last = pages.length + 1;
-          const index = rtlRef.current ? Math.max(0, last - raw) : raw;
+          // `inverted` es un transform visual (scaleX: -1): la lista se ve
+          // espejada pero el offset sigue mapeando 1 a 1 al índice de datos
+          // en los dos modos. Invertirlo acá también (como hacía antes)
+          // duplicaba la inversión y en modo manga terminaba calculando la
+          // página al revés — a veces "avanzaba" hacia la anterior y el
+          // contador de páginas quedaba desincronizado del real.
+          const index = Math.round(event.nativeEvent.contentOffset.x / width);
           applyListIndexRef.current(index);
         }}
         onScrollToIndexFailed={({ index }) => {
@@ -491,7 +501,21 @@ export function ReaderScreen() {
               {page + 1}/{pages.length}
             </Text>
           </View>
-          <View style={styles.bottomBar}>
+          <View
+            style={styles.bottomBar}
+            onTouchStart={() => setBarTouching(true)}
+            onTouchEnd={() => setBarTouching(false)}
+            onTouchCancel={() => setBarTouching(false)}
+          >
+            {scrubPage !== null ? (
+              <View style={styles.scrubBubble} pointerEvents="none">
+                <View style={styles.scrubBubbleInner}>
+                  <Text style={styles.scrubBubbleText}>
+                    Pág. {scrubPage + 1}/{pages.length}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
             <Slider
               style={styles.slider}
               minimumValue={0}
@@ -501,7 +525,13 @@ export function ReaderScreen() {
               minimumTrackTintColor={colors.accent2}
               maximumTrackTintColor="rgba(255,255,255,0.16)"
               thumbTintColor={colors.gold}
-              onSlidingComplete={(value) => goTo(Math.round(value), false)}
+              onSlidingStart={(value) => setScrubPage(Math.round(value))}
+              onValueChange={(value) => setScrubPage(Math.round(value))}
+              onSlidingComplete={(value) => {
+                setScrubPage(null);
+                setBarTouching(false);
+                goTo(Math.round(value), false);
+              }}
             />
             <Text style={styles.hint}>
               {rtl
@@ -631,6 +661,27 @@ function makeStyles(colors: ColorTokens) {
   slider: {
     width: '100%',
     height: 40,
+  },
+  scrubBubble: {
+    position: 'absolute',
+    top: -42,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  scrubBubbleInner: {
+    backgroundColor: colors.overlay,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  scrubBubbleText: {
+    fontFamily: fonts.displaySemi,
+    color: colors.gold,
+    fontSize: 13,
+    letterSpacing: 0.4,
   },
   hint: {
     textAlign: 'center',

@@ -73,7 +73,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     libraryName: null,
     coversFolderUri: null,
     coversFolderName: null,
-    readingDirection: 'rtl',
+    readingDirection: 'ltr',
     colorScheme: 'dark',
     keepScreenOn: true,
     onlineMode: true,

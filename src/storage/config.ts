@@ -10,7 +10,11 @@ const defaultConfig = (): AppConfig => ({
   libraryName: null,
   coversFolderUri: null,
   coversFolderName: null,
-  readingDirection: 'rtl',
+  // Tanto las páginas que vienen de MangaDex como las de un CBR/CBZ ya
+  // llegan ordenadas de forma ascendente ("estilo cómic"), así que por
+  // defecto se leen de izquierda a derecha. El usuario lo puede cambiar a
+  // "manga" (derecha a izquierda) desde Ajustes o con el botón del lector.
+  readingDirection: 'ltr',
   colorScheme: 'dark',
   keepScreenOn: true,
   onlineMode: true,
