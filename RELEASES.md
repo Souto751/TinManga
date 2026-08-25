@@ -6,14 +6,17 @@ a mano (una sola vez) para que funcione de punta a punta.
 ## Qué hace la app ahora
 
 - Al abrir la app (y con un botón manual en **Ajustes → Actualizaciones**),
-  consulta el último release público de
-  `https://github.com/Souto751/TinManga/releases/latest`.
+  consulta el último release de `https://github.com/Souto751/TinManga`.
 - Si ese release trae un `versionCode` más alto que el instalado, muestra un
   aviso arriba de la pantalla con un botón **Actualizar**.
 - Al tocarlo, descarga el `.apk` del release y abre el instalador de Android.
   **Eso sí lo tenés que confirmar vos**: Android no deja instalar nada fuera
   de Play Store sin que el usuario toque "Instalar" (ver más abajo el permiso
   de "orígenes desconocidos").
+
+Como el repo es **privado** (lo van a usar conocidos, no querés que quede
+público), todos esos pedidos van con un token de solo lectura — ver la
+sección 4 más abajo.
 
 Código relevante: `src/update/updater.ts`, `src/context/AppContext.tsx`,
 `src/components/UpdateBanner.tsx`, sección nueva en
@@ -118,7 +121,54 @@ Borrá `keystore.b64` de tu disco después (no lo commitees).
 > -genkeypair`, actualizás los 4 secrets y las 4 propiedades locales — pero
 > ese día vas a tener que reinstalar la app una vez porque cambia la firma.
 
-## 4. Instalar las dependencias nuevas
+## 4. Token de lectura para el repo privado
+
+Como el repo no es público, la app necesita credenciales para poder leer
+`releases/latest` y descargar los assets. Usamos un **fine-grained personal
+access token** de GitHub, limitado nada más a este repo y de solo lectura —
+no da acceso a nada más de tu cuenta ni permite escribir.
+
+### Generarlo
+
+1. En GitHub: tu foto de perfil → **Settings** → (al final del menú
+   izquierdo) **Developer settings** → **Personal access tokens** →
+   **Fine-grained tokens** → **Generate new token**.
+2. **Repository access**: "Only select repositories" → elegí `TinManga`.
+3. **Permissions → Repository permissions → Contents**: `Read-only`. No
+   hace falta ningún otro permiso.
+4. **Expiration**: a gusto. Con "No expiration" no tenés que acordarte de
+   renovarlo, pero tené en cuenta que si alguna vez lo revocás o cambiás,
+   las apps que ya instalaron tus conocidos van a dejar de poder chequear
+   actualizaciones hasta que les pases una build nueva (el token queda
+   incluido dentro de cada `.apk` al compilarlo, no se pide en vivo).
+5. Generá el token y copialo — GitHub te lo muestra una sola vez.
+
+### Usarlo en tu build local
+
+Copiá `.env.example` a `.env` (ese archivo queda gitignoreado, nunca se
+commitea) y completá el token:
+
+```bash
+cp .env.example .env
+```
+
+```
+EXPO_PUBLIC_GITHUB_TOKEN=github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Usarlo en GitHub Actions
+
+Mismo lugar que los secrets del keystore — **Settings → Secrets and
+variables → Actions → New repository secret**:
+
+| Secret | Valor |
+|---|---|
+| `RELEASE_READ_TOKEN` | el mismo token de arriba |
+
+El workflow lo escribe en un `.env` propio dentro del runner antes de
+compilar (paso "Configurar token de lectura para GitHub").
+
+## 5. Instalar las dependencias nuevas
 
 Estos dos paquetes JS no estaban en el proyecto; hay que agregarlos (esto
 también fija la versión correcta para el SDK 57):
@@ -131,7 +181,7 @@ Después de eso, `npx tsc --noEmit` debería pasar limpio. Si algo de la API
 de `expo-file-system`/`expo-intent-launcher` cambió respecto a lo que se usó
 acá (`src/update/updater.ts`), va a saltar como error de tipos ahí mismo.
 
-## 5. Publicar una versión nueva
+## 6. Publicar una versión nueva
 
 Una vez que los secrets están cargados:
 
@@ -153,7 +203,7 @@ El push del tag dispara `.github/workflows/release.yml`, que:
 Para la siguiente versión, repetís: subís los cambios, `git tag v1.8.1`,
 `git push --tags`. No hace falta tocar `versionCode` a mano nunca más.
 
-## 6. Primera vez que se instala una actualización en el celular
+## 7. Primera vez que se instala una actualización en el celular
 
 Android va a pedir permiso para "instalar apps desconocidas" para TinMangas
 la primera vez que se use el botón **Actualizar** (es el permiso
@@ -164,11 +214,24 @@ se otorga una sola vez por app, no por versión.
 
 - **`INSTALL_FAILED_UPDATE_INCOMPATIBLE`**: el APK nuevo está firmado con
   una clave distinta a la instalada. Revisá que los secrets de GitHub y tu
-  `gradle.properties` local apunten al mismo `debug.keystore` (paso 1-3).
-- **El banner nunca aparece**: la API de GitHub para repos públicos permite
-  60 pedidos sin autenticar por hora por IP; para uso personal no debería
-  ser problema. Probá el botón manual en Ajustes, que muestra el error
-  concreto si lo hay.
+  `gradle.properties` local apunten al mismo `debug.keystore` (paso 1-3). Si
+  la app que ya tenías instalada en un celular se compiló en otra PC (con
+  otro `debug.keystore` que ya no tenés), no hay forma de "arreglar" la
+  firma sin perder esa instalación — hay que desinstalarla una vez e
+  instalar la nueva ya firmada consistente; de ahí en adelante no vuelve a
+  pasar.
+- **"Buscar actualizaciones" tira "GitHub respondió 404"**: como el repo es
+  privado, esto pasa si el token no está bien cargado. Revisá que exista
+  `EXPO_PUBLIC_GITHUB_TOKEN` en el `.env` con el que se compiló ese APK
+  puntual (paso 4) — si armaste el build sin el `.env`, o el token no tiene
+  acceso al repo, la API devuelve 404 en vez de un error más claro (es
+  cómo responde GitHub para no confirmar la existencia de un repo privado
+  sin credenciales).
+- **El banner nunca aparece pero el chequeo manual no tira error**: puede
+  ser que ya estés al día, o que hayas descartado ese aviso antes (tocaste
+  la ✕) — el descarte queda guardado por versión, así que no vuelve a
+  aparecer solo hasta que salga una versión más nueva. Probá el botón
+  manual en Ajustes, que además te confirma con un cartel si estás al día.
 - **El workflow falla en "Compilar APK de release"**: es el mismo
   `gradlew assembleRelease` que ya usabas a mano, corriendo en un runner
   Linux de GitHub en vez de tu PC — si el módulo nativo `native-unrar`

@@ -6,7 +6,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
  * Chequeo de actualizaciones vía GitHub Releases.
  *
  * Cómo funciona:
- * 1. La app pide el último release de `REPO` a la API pública de GitHub.
+ * 1. La app pide el último release de `REPO` a la API de GitHub.
  * 2. Ese release tiene que traer dos assets: un .apk y un `latest.json`
  *    ({ version, versionCode, notes }). Los publica el workflow de
  *    .github/workflows/release.yml cada vez que se pushea un tag vX.Y.Z.
@@ -15,10 +15,25 @@ import * as IntentLauncher from 'expo-intent-launcher';
  * 4. Descarga el .apk a caché y abre el instalador de Android
  *    (ACTION_INSTALL_PACKAGE) — el usuario igual tiene que tocar "Instalar",
  *    Android no permite instalar apps fuera de Play Store en silencio.
+ *
+ * El repo es privado, así que todos los pedidos (metadata + descarga de
+ * assets) van con un token de solo lectura. El token NO vive en este
+ * archivo: se inyecta como variable de entorno pública de Expo
+ * (`EXPO_PUBLIC_GITHUB_TOKEN`, definida en un `.env` local gitignoreado y
+ * en un secret de GitHub Actions para el build de CI) y queda inlineado
+ * en el bundle JS al compilar. Ver RELEASES.md para cómo generarlo.
  */
 
 const REPO = 'Souto751/TinManga';
 const RELEASES_LATEST_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = process.env.EXPO_PUBLIC_GITHUB_TOKEN;
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 export type UpdateInfo = {
   version: string;
@@ -35,7 +50,10 @@ export type UpdateCheckResult =
 
 type GithubAsset = {
   name: string;
-  browser_download_url: string;
+  /** Endpoint de la API para bajar el binario del asset (funciona con
+   *  Authorization + Accept: application/octet-stream, a diferencia de
+   *  browser_download_url que está pensado para un navegador logueado). */
+  url: string;
 };
 
 type GithubRelease = {
@@ -62,10 +80,10 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
   let release: GithubRelease;
   try {
     const res = await fetch(RELEASES_LATEST_URL, {
-      headers: {
+      headers: authHeaders({
         Accept: 'application/vnd.github+json',
         'User-Agent': 'TinMangas-updater',
-      },
+      }),
     });
     if (!res.ok) {
       return { status: 'error', message: `GitHub respondió ${res.status}.` };
@@ -83,7 +101,12 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
 
   let meta: LatestMeta;
   try {
-    const metaRes = await fetch(metaAsset.browser_download_url);
+    // Para bajar el contenido de un asset (repo privado incluido) hay que
+    // pegarle al endpoint de la API del asset con Accept: octet-stream,
+    // no al browser_download_url (ese es para un navegador logueado).
+    const metaRes = await fetch(metaAsset.url, {
+      headers: authHeaders({ Accept: 'application/octet-stream' }),
+    });
     if (!metaRes.ok) {
       return { status: 'error', message: 'No se pudo leer la info de versión del release.' };
     }
@@ -102,7 +125,7 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
       version: meta.version,
       versionCode: meta.versionCode,
       notes: meta.notes ?? '',
-      apkUrl: apkAsset.browser_download_url,
+      apkUrl: apkAsset.url,
       htmlUrl: release.html_url,
     },
   };
@@ -123,7 +146,9 @@ export async function downloadUpdate(info: UpdateInfo): Promise<File> {
       // no-op: si no se puede borrar seguimos igual, downloadFileAsync la pisa
     }
   }
-  return File.downloadFileAsync(info.apkUrl, destination);
+  return File.downloadFileAsync(info.apkUrl, destination, {
+    headers: authHeaders({ Accept: 'application/octet-stream' }),
+  });
 }
 
 export async function installUpdate(file: File): Promise<void> {
