@@ -12,6 +12,7 @@ import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
 import { chapterSortValue, getManga, listChapters } from '../online/mangadex/api';
 import { comicFromRemoteChapter } from '../online/mangadex/comic';
+import { API_LANGUAGE_LABELS } from '../online/mangadex/constants';
 import { RemoteChapter, RemoteManga } from '../online/mangadex/types';
 import { isProgressComplete } from '../storage/progress';
 import { ColorTokens, fonts } from '../theme';
@@ -42,6 +43,7 @@ export function RemoteMangaScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
+  const languageLabel = API_LANGUAGE_LABELS[config.apiLanguage];
 
   useEffect(() => {
     let cancelled = false;
@@ -214,7 +216,7 @@ export function RemoteMangaScreen() {
       {manga?.tags.length ? <Text style={styles.tags}>{manga.tags.join(' · ')}</Text> : null}
 
       <View style={styles.sectionRow}>
-        <Text style={styles.section}>CAPÍTULOS EN ESPAÑOL</Text>
+        <Text style={styles.section}>CAPÍTULOS · {languageLabel.toUpperCase()}</Text>
         {chapters.length > 0 ? (
           <Pressable onPress={() => setSortAsc((value) => !value)} style={styles.sort}>
             <Text style={styles.sortText}>{sortAsc ? '1 → N' : 'N → 1'}</Text>
@@ -248,7 +250,9 @@ export function RemoteMangaScreen() {
           data={sortedChapters}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={header}
-          ListEmptyComponent={<Text style={styles.empty}>No hay capítulos en español para este título.</Text>}
+          ListEmptyComponent={
+            <Text style={styles.empty}>No hay capítulos en {languageLabel.toLowerCase()} para este título.</Text>
+          }
           contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
           showsVerticalScrollIndicator={false}
           initialNumToRender={16}

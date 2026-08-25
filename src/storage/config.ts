@@ -3,6 +3,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { AppConfig } from '../types';
 import { seedTracking } from '../tracking/ids';
 
+const VALID_API_LANGUAGES = ['es', 'es-la', 'en'] as const;
+
 const defaultConfig = (): AppConfig => ({
   libraryUri: null,
   libraryName: null,
@@ -12,6 +14,7 @@ const defaultConfig = (): AppConfig => ({
   colorScheme: 'dark',
   keepScreenOn: true,
   onlineMode: true,
+  apiLanguage: 'es',
   progress: {},
   seriesCovers: {},
   tracking: {},
@@ -45,6 +48,9 @@ export async function loadConfig(): Promise<AppConfig> {
       seriesCovers: parsed.seriesCovers ?? {},
       tracking: parsed.tracking ?? seedTracking(progress),
       onlineMode: parsed.onlineMode ?? true,
+      apiLanguage: VALID_API_LANGUAGES.includes(parsed.apiLanguage as (typeof VALID_API_LANGUAGES)[number])
+        ? (parsed.apiLanguage as AppConfig['apiLanguage'])
+        : 'es',
       updateDismissedVersionCode: parsed.updateDismissedVersionCode ?? null,
     };
     if (!parsed.tracking) {

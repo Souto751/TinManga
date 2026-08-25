@@ -183,7 +183,35 @@ acá (`src/update/updater.ts`), va a saltar como error de tipos ahí mismo.
 
 ## 6. Publicar una versión nueva
 
-Una vez que los secrets están cargados:
+### Con el script (recomendado)
+
+Una vez que los secrets están cargados, `scripts/publish.ps1` hace todo el
+flujo de golpe: chequea que no quede un `.git\index.lock` colgado ni el
+`.env` trackeado por git, te muestra el `git status` para que confirmes,
+corre `npx tsc --noEmit`, calcula solo el próximo número de versión (patch/
+minor/major) mirando el último tag, y recién ahí commitea, taguea y
+pushea.
+
+```powershell
+# Arreglo (bugfix) — sube el patch, ej. v1.9.0 -> v1.9.1
+.\scripts\publish.ps1
+
+# Función nueva — sube el minor, ej. v1.9.0 -> v1.10.0
+.\scripts\publish.ps1 -Bump minor -Message "Modo online/offline + idioma de MangaDex"
+
+# Versión puntual a mano, ignora el cálculo automático
+.\scripts\publish.ps1 -Version 2.0.0 -Message "Rediseño completo"
+```
+
+Te va a pedir confirmación dos veces (después de mostrarte el `git status`,
+y de nuevo antes de pushear), así que no hay riesgo de que se dispare solo.
+Si en algún momento PowerShell te bloquea la ejecución de scripts, corré una
+vez `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` y confirmá.
+
+### A mano
+
+Si preferís hacerlo paso a paso vos mismo (o el script no te sirve por
+algún motivo):
 
 ```bash
 git add -A

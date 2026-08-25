@@ -10,10 +10,20 @@ import {
 } from '../library/covers';
 import { groupBySeries } from '../library/group';
 import { pickLibraryFolder, scanLibrary } from '../library/scan';
+import { setApiLanguage as setMangadexLanguage } from '../online/mangadex/api';
 import { loadConfig, saveConfig } from '../storage/config';
 import { ColorTokens, paletteFor } from '../theme';
 import { trackedFromComic } from '../tracking/ids';
-import { AppConfig, ColorScheme, Comic, ComicProgress, ReadingDirection, Series, TrackedTitle } from '../types';
+import {
+  ApiLanguage,
+  AppConfig,
+  ColorScheme,
+  Comic,
+  ComicProgress,
+  ReadingDirection,
+  Series,
+  TrackedTitle,
+} from '../types';
 import { checkForUpdate, downloadUpdate, installUpdate, UpdateCheckResult, UpdateInfo } from '../update/updater';
 
 export type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'up-to-date';
@@ -33,6 +43,7 @@ type AppContextValue = {
   setColorScheme: (scheme: ColorScheme) => Promise<void>;
   setKeepScreenOn: (value: boolean) => Promise<void>;
   setOnlineMode: (value: boolean) => Promise<void>;
+  setApiLanguage: (value: ApiLanguage) => Promise<void>;
   saveProgress: (comic: Comic, page: number, total: number, coverUri?: string) => Promise<void>;
   resetProgress: (comicId: string) => Promise<void>;
   markComicsRead: (comics: Comic[], read: boolean) => Promise<void>;
@@ -66,6 +77,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     colorScheme: 'dark',
     keepScreenOn: true,
     onlineMode: true,
+    apiLanguage: 'es',
     progress: {},
     seriesCovers: {},
     tracking: {},
@@ -208,6 +220,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setOnlineMode = useCallback(async (value: boolean) => {
     await persist({ ...configRef.current, onlineMode: value });
   }, [persist]);
+
+  const setApiLanguage = useCallback(async (value: ApiLanguage) => {
+    await persist({ ...configRef.current, apiLanguage: value });
+  }, [persist]);
+
+  // El módulo de la API de MangaDex no tiene acceso al contexto de React,
+  // así que le pasamos el idioma elegido cada vez que cambia (y al cargar
+  // la config guardada, apenas queda lista).
+  useEffect(() => {
+    setMangadexLanguage(config.apiLanguage);
+  }, [config.apiLanguage]);
 
   const saveProgress = useCallback(async (comic: Comic, page: number, total: number, coverUri?: string) => {
     const current = configRef.current;
@@ -465,6 +488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setColorScheme,
       setKeepScreenOn,
       setOnlineMode,
+      setApiLanguage,
       saveProgress,
       resetProgress,
       markComicsRead,
@@ -499,6 +523,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setColorScheme,
       setKeepScreenOn,
       setOnlineMode,
+      setApiLanguage,
       saveProgress,
       resetProgress,
       markComicsRead,

@@ -7,6 +7,7 @@ import { clearPageCache } from '../archive/cache';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { useApp } from '../context/AppContext';
 import { friendlyFolderName } from '../library/scan';
+import { API_LANGUAGES, API_LANGUAGE_LABELS } from '../online/mangadex/constants';
 import { ColorTokens, fonts } from '../theme';
 import { currentVersionName } from '../update/updater';
 
@@ -21,6 +22,7 @@ export function SettingsScreen() {
     setColorScheme,
     setKeepScreenOn,
     setOnlineMode,
+    setApiLanguage,
     updateState,
     checkForUpdates,
   } = useApp();
@@ -165,6 +167,28 @@ export function SettingsScreen() {
           trackColor={{ false: colors.border, true: colors.accent }}
           thumbColor={colors.gold}
         />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Idioma de MangaDex</Text>
+        <Text style={styles.hint}>
+          Con qué idioma se buscan y muestran los títulos, capítulos y descripciones en Explorar.
+        </Text>
+        <View style={styles.segment}>
+          {API_LANGUAGES.map((lang) => (
+            <Pressable
+              key={lang}
+              onPress={() => void setApiLanguage(lang)}
+              style={[styles.segmentItem, config.apiLanguage === lang && styles.segmentActive]}
+            >
+              <Text
+                style={[styles.segmentText, config.apiLanguage === lang && styles.segmentTextActive]}
+              >
+                {API_LANGUAGE_LABELS[lang]}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <View style={styles.card}>

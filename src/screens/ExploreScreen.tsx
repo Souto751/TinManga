@@ -18,6 +18,7 @@ import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
 import { searchManga } from '../online/mangadex/api';
+import { API_LANGUAGE_LABELS } from '../online/mangadex/constants';
 import { RemoteManga } from '../online/mangadex/types';
 import { ColorTokens, fonts } from '../theme';
 import { mangaTrackingId, TRACKING_LABELS } from '../tracking/ids';
@@ -67,7 +68,10 @@ export function ExploreScreen() {
     return () => {
       cancelled = true;
     };
-  }, [debounced, config.onlineMode]);
+    // config.apiLanguage entra en la dependencia para que, al cambiar el
+    // idioma en Ajustes, la búsqueda actual se vuelva a pedir con el nuevo
+    // filtro en vez de quedarse con resultados del idioma anterior.
+  }, [debounced, config.onlineMode, config.apiLanguage]);
 
   const markManga = (item: RemoteManga, status: TrackingStatus) => {
     void upsertTracking({
@@ -118,7 +122,11 @@ export function ExploreScreen() {
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={<Text style={styles.empty}>No hay resultados en español para esa búsqueda.</Text>}
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              No hay resultados en {API_LANGUAGE_LABELS[config.apiLanguage].toLowerCase()} para esa búsqueda.
+            </Text>
+          }
           renderItem={({ item }) => (
             <View style={styles.cell}>
               <CoverCard

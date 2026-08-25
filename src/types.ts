@@ -1,6 +1,7 @@
 export type ReadingDirection = 'rtl' | 'ltr';
 export type ColorScheme = 'dark' | 'light';
 export type TrackingStatus = 'plan' | 'reading' | 'read';
+export type ApiLanguage = 'es' | 'es-la' | 'en';
 
 export type ComicProgress = {
   page: number;
@@ -36,6 +37,8 @@ export type AppConfig = {
   keepScreenOn: boolean;
   /** Si está en false, Explorar (MangaDex) queda inhabilitado — solo biblioteca local. */
   onlineMode: boolean;
+  /** Idioma con el que se buscan/muestran los resultados de MangaDex. */
+  apiLanguage: ApiLanguage;
   progress: Record<string, ComicProgress>;
   seriesCovers: Record<string, string>;
   tracking: Record<string, TrackedTitle>;

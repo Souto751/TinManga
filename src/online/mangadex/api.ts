@@ -4,10 +4,24 @@ import {
   MANGADEX_USER_AGENT,
 } from './constants';
 import { RemoteChapter, RemoteManga } from './types';
+import { ApiLanguage } from '../../types';
 
 const TTL_MS = 20 * 60 * 1000;
 const MIN_GAP_MS = 350;
-const LANGS = ['es', 'es-la'];
+
+// Idioma activo para pedirle a MangaDex tanto el filtro de capítulos/series
+// como cuál título/descripción/tag mostrar. Lo actualiza AppContext cada vez
+// que cambia config.apiLanguage (ver setApiLanguage más abajo); este módulo
+// no tiene acceso directo al contexto de React.
+let currentLanguage: ApiLanguage = 'es';
+
+export function setApiLanguage(lang: ApiLanguage): void {
+  currentLanguage = lang;
+}
+
+export function getApiLanguage(): ApiLanguage {
+  return currentLanguage;
+}
 
 type CacheEntry = { at: number; value: unknown };
 
@@ -22,7 +36,9 @@ function pickLocale(map?: Record<string, string> | null): string {
   if (!map) {
     return '';
   }
-  return map.es || map['es-la'] || map.en || map.ja || Object.values(map)[0] || '';
+  return (
+    map[currentLanguage] || map.es || map['es-la'] || map.en || map.ja || Object.values(map)[0] || ''
+  );
 }
 
 function coverUrl(mangaId: string, fileName?: string): string | undefined {
@@ -135,7 +151,7 @@ export async function searchManga(query: string): Promise<RemoteManga[]> {
   const payload = await mdGet<MangaPayload>('/manga', {
     limit: '24',
     'includes[]': 'cover_art',
-    'availableTranslatedLanguage[]': LANGS,
+    'availableTranslatedLanguage[]': [currentLanguage],
     'contentRating[]': ['safe', 'suggestive'],
     ...(trimmed
       ? { title: trimmed, 'order[relevance]': 'desc' }
@@ -180,7 +196,7 @@ export async function listChapters(mangaId: string): Promise<RemoteChapter[]> {
     const payload = await mdGet<FeedPayload>(`/manga/${mangaId}/feed`, {
       limit: String(pageSize),
       offset: String(offset),
-      'translatedLanguage[]': LANGS,
+      'translatedLanguage[]': [currentLanguage],
       'order[chapter]': 'asc',
       'order[volume]': 'asc',
       'contentRating[]': ['safe', 'suggestive', 'erotica', 'pornographic'],
