@@ -60,13 +60,10 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
-      - name: Bump version y versionCode en app.json
+      - name: Exportar versión y versionCode para app.config.js
         run: |
-          jq --arg v "${{ steps.version.outputs.version }}" \
-             --argjson vc "${{ steps.version.outputs.version_code }}" \
-             '.expo.version = $v | .expo.android.versionCode = $vc' \
-             app.json > app.json.tmp
-          mv app.json.tmp app.json
+          echo "TINMANGAS_VERSION=${{ steps.version.outputs.version }}" >> "$GITHUB_ENV"
+          echo "TINMANGAS_VERSION_CODE=${{ steps.version.outputs.version_code }}" >> "$GITHUB_ENV"
 
       - name: Decodificar el keystore de release
         env:

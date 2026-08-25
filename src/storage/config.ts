@@ -11,6 +11,7 @@ const defaultConfig = (): AppConfig => ({
   readingDirection: 'rtl',
   colorScheme: 'dark',
   keepScreenOn: true,
+  onlineMode: true,
   progress: {},
   seriesCovers: {},
   tracking: {},
@@ -43,6 +44,7 @@ export async function loadConfig(): Promise<AppConfig> {
       progress,
       seriesCovers: parsed.seriesCovers ?? {},
       tracking: parsed.tracking ?? seedTracking(progress),
+      onlineMode: parsed.onlineMode ?? true,
       updateDismissedVersionCode: parsed.updateDismissedVersionCode ?? null,
     };
     if (!parsed.tracking) {

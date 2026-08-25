@@ -20,6 +20,7 @@ export function SettingsScreen() {
     setReadingDirection,
     setColorScheme,
     setKeepScreenOn,
+    setOnlineMode,
     updateState,
     checkForUpdates,
   } = useApp();
@@ -150,13 +151,20 @@ export function SettingsScreen() {
         />
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>MangaDex</Text>
-        <Text style={styles.value}>Solo lectura online</Text>
-        <Text style={styles.hint}>
-          Explorar busca y abre capítulos en MangaDex. No se descargan a la carpeta CBR; tu biblioteca
-          local sigue siendo la de siempre.
-        </Text>
+      <View style={styles.rowCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.label}>Modo online</Text>
+          <Text style={styles.hint}>
+            Habilita Explorar (búsqueda y lectura en MangaDex). Apagado, la app solo usa tu biblioteca
+            local.
+          </Text>
+        </View>
+        <Switch
+          value={config.onlineMode}
+          onValueChange={(value) => void setOnlineMode(value)}
+          trackColor={{ false: colors.border, true: colors.accent }}
+          thumbColor={colors.gold}
+        />
       </View>
 
       <View style={styles.card}>

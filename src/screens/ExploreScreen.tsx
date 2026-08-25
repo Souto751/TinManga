@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CoverCard } from '../components/CoverCard';
+import { OfflineNotice } from '../components/OfflineNotice';
 import { ScreenBackdrop } from '../components/ScreenBackdrop';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../navigation/types';
@@ -39,6 +40,10 @@ export function ExploreScreen() {
   }, [query]);
 
   useEffect(() => {
+    if (!config.onlineMode) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -62,7 +67,7 @@ export function ExploreScreen() {
     return () => {
       cancelled = true;
     };
-  }, [debounced]);
+  }, [debounced, config.onlineMode]);
 
   const markManga = (item: RemoteManga, status: TrackingStatus) => {
     void upsertTracking({
@@ -90,12 +95,15 @@ export function ExploreScreen() {
           onChangeText={setQuery}
           placeholder="Buscar manga…"
           placeholderTextColor={colors.textMuted}
-          style={styles.searchInput}
+          style={[styles.searchInput, !config.onlineMode && styles.searchInputDisabled]}
           autoCorrect={false}
           autoCapitalize="none"
+          editable={config.onlineMode}
         />
       </View>
-      {loading ? (
+      {!config.onlineMode ? (
+        <OfflineNotice />
+      ) : loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent2} />
           <Text style={styles.loadingText}>{debounced ? 'Buscando…' : 'Cargando catálogo…'}</Text>
@@ -185,6 +193,9 @@ function makeStyles(colors: ColorTokens) {
       fontSize: 15,
       paddingHorizontal: 14,
       paddingVertical: 12,
+    },
+    searchInputDisabled: {
+      opacity: 0.45,
     },
     list: {
       paddingHorizontal: 20,

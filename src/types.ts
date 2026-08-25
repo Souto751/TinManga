@@ -34,6 +34,8 @@ export type AppConfig = {
   readingDirection: ReadingDirection;
   colorScheme: ColorScheme;
   keepScreenOn: boolean;
+  /** Si está en false, Explorar (MangaDex) queda inhabilitado — solo biblioteca local. */
+  onlineMode: boolean;
   progress: Record<string, ComicProgress>;
   seriesCovers: Record<string, string>;
   tracking: Record<string, TrackedTitle>;

@@ -194,8 +194,10 @@ git push origin master --tags
 
 El push del tag dispara `.github/workflows/release.yml`, que:
 
-1. Bumpea `version`/`versionCode` en `app.json` (versionCode = `1000 +
-   número de run`, así siempre queda por encima del `16` actual).
+1. Calcula `version`/`versionCode` a partir del tag (versionCode = `1000 +
+   número de run`, así siempre queda por encima del `16` actual) y se los
+   pasa a `app.config.js` como variables de entorno (`TINMANGAS_VERSION` /
+   `TINMANGAS_VERSION_CODE`).
 2. Compila el APK firmado con el keystore de los secrets.
 3. Publica un GitHub Release con el `.apk` y un `latest.json` (lo que lee la
    app para saber la versión disponible).
@@ -209,6 +211,54 @@ Android va a pedir permiso para "instalar apps desconocidas" para TinMangas
 la primera vez que se use el botón **Actualizar** (es el permiso
 `REQUEST_INSTALL_PACKAGES` que ya se agregó a `app.json`). Es un permiso que
 se otorga una sola vez por app, no por versión.
+
+## 8. Build de prueba (dev) sin pisar la app instalada
+
+Desde que la config pasó a `app.config.js`, existe una variante **dev** que
+se instala como una app aparte (`com.personal.lectorcbr.dev`, se llama
+"TinMangas (Dev)"), separada de la instalación real que ya tenés (y que
+usan los conocidos). Sirve para probar builds nuevas sin arriesgar el
+progreso guardado ni la app que otros están usando.
+
+`app.json` quedó reemplazado por `app.config.js` (que lee `APP_VARIANT` del
+entorno). Si todavía tenés el `app.json` viejo dando vueltas, se puede
+borrar o renombrar — Expo usa `app.config.js` y lo ignora.
+
+### Generar el build dev
+
+PowerShell:
+
+```powershell
+$env:APP_VARIANT="development"
+npx expo prebuild -p android --clean
+cd android
+.\gradlew assembleDebug
+```
+
+Esto regenera `/android` con `applicationId com.personal.lectorcbr.dev` y el
+nombre "TinMangas (Dev)". El APK queda en
+`android\app\build\outputs\apk\debug\app-debug.apk` — se instala con
+`adb install -r app-debug.apk` (o mandándolo al celular a mano) igual que
+siempre, pero al tener otro `applicationId` Android lo trata como una app
+distinta: convive con la real, no pisa nada, y no hace falta preocuparse
+por la firma (usa el `debug.keystore` de siempre, no el de release).
+
+### Volver a compilar la versión real
+
+Importante: `$env:APP_VARIANT` queda seteada en esa terminal hasta que la
+cerrés. Para volver a compilar la app de producción en la misma sesión de
+PowerShell:
+
+```powershell
+Remove-Item Env:APP_VARIANT
+npx expo prebuild -p android --clean
+```
+
+O simplemente abrí una terminal nueva (sin la variable seteada, `expo
+prebuild` arma la versión de producción por defecto). El workflow de GitHub
+Actions nunca setea `APP_VARIANT`, así que los releases publicados siempre
+son la app de producción — la variante dev es solo para instalar a mano en
+tu celular mientras probás.
 
 ## Troubleshooting
 

@@ -32,6 +32,7 @@ type AppContextValue = {
   setReadingDirection: (direction: ReadingDirection) => Promise<void>;
   setColorScheme: (scheme: ColorScheme) => Promise<void>;
   setKeepScreenOn: (value: boolean) => Promise<void>;
+  setOnlineMode: (value: boolean) => Promise<void>;
   saveProgress: (comic: Comic, page: number, total: number, coverUri?: string) => Promise<void>;
   resetProgress: (comicId: string) => Promise<void>;
   markComicsRead: (comics: Comic[], read: boolean) => Promise<void>;
@@ -64,6 +65,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     readingDirection: 'rtl',
     colorScheme: 'dark',
     keepScreenOn: true,
+    onlineMode: true,
     progress: {},
     seriesCovers: {},
     tracking: {},
@@ -201,6 +203,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setKeepScreenOn = useCallback(async (value: boolean) => {
     await persist({ ...configRef.current, keepScreenOn: value });
+  }, [persist]);
+
+  const setOnlineMode = useCallback(async (value: boolean) => {
+    await persist({ ...configRef.current, onlineMode: value });
   }, [persist]);
 
   const saveProgress = useCallback(async (comic: Comic, page: number, total: number, coverUri?: string) => {
@@ -458,6 +464,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setReadingDirection,
       setColorScheme,
       setKeepScreenOn,
+      setOnlineMode,
       saveProgress,
       resetProgress,
       markComicsRead,
@@ -491,6 +498,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setReadingDirection,
       setColorScheme,
       setKeepScreenOn,
+      setOnlineMode,
       saveProgress,
       resetProgress,
       markComicsRead,
