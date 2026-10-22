@@ -23,24 +23,30 @@ import { getChapterPages, listChapters } from '../online/mangadex/api';
 import { comicFromRemoteChapter } from '../online/mangadex/comic';
 import { isRemoteChapterUri, remoteChapterId } from '../online/mangadex/constants';
 import { ReaderPage } from '../reader/ReaderPage';
+import { VerticalReader, VerticalReaderHandle } from '../reader/VerticalReader';
 import { pagesAround, prefetchPageUrls, resetPagePrefetch, waitWithTimeout } from '../reader/prefetchPages';
 import { ColorTokens, fonts } from '../theme';
 
 const PREV = '__prev__';
 const NEXT = '__next__';
+const isSentinelItem = (item: string) => item === PREV || item === NEXT;
+const DIRECTION_CYCLE = { rtl: 'ltr', ltr: 'vertical', vertical: 'rtl' } as const;
 
 export function ReaderScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { comic } = useRoute<RouteProp<RootStackParamList, 'Reader'>>().params;
-  const { config, colors, saveProgress, setReadingDirection, series, readingQueue, setReadingQueue } = useApp();
+  const { config, colors, saveProgress, directionFor, setSeriesDirection, series, readingQueue, setReadingQueue } = useApp();
+  // Cada serie recuerda su modo (manga, cómic o webtoon); si no eligió ninguno, usa el de Ajustes.
+  const direction = directionFor(comic);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const listRef = useRef<FlatList<string>>(null);
+  const verticalRef = useRef<VerticalReaderHandle>(null);
   const pageRef = useRef(0);
   const savedPage = useRef(config.progress[comic.id]?.page ?? 0);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rtlRef = useRef(config.readingDirection === 'rtl');
+  const rtlRef = useRef(direction === 'rtl');
   const pagesLenRef = useRef(0);
   const ignoreSentinelUntil = useRef(0);
   const queueReadyRef = useRef(false);
@@ -62,8 +68,11 @@ export function ReaderScreen() {
   // terminaba cambiando de página por scroll en lugar de mover el slider.
   const [barTouching, setBarTouching] = useState(false);
 
-  const rtl = config.readingDirection === 'rtl';
+  const rtl = direction === 'rtl';
+  const vertical = direction === 'vertical';
   rtlRef.current = rtl;
+  const verticalModeRef = useRef(vertical);
+  verticalModeRef.current = vertical;
   const remote = isRemoteChapterUri(comic.uri);
   pagesLenRef.current = pages.length;
   queueReadyRef.current =
@@ -264,15 +273,24 @@ export function ReaderScreen() {
     persistPageRef.current(real);
   });
 
+  // Lleva la lista al índice dado (0 = centinela anterior) en el modo que esté activo.
+  const scrollToListIndex = useCallback((index: number, animated = true) => {
+    if (verticalModeRef.current) {
+      verticalRef.current?.scrollToPage(index - 1, animated);
+    } else {
+      listRef.current?.scrollToIndex({ index, animated });
+    }
+  }, []);
+
   const openNeighbor = useCallback(
     (dir: 'prev' | 'next') => {
       const target = dir === 'next' ? neighborsRef.current.next : neighborsRef.current.prev;
       if (!target) {
         setSentinel(null);
         if (dir === 'prev') {
-          listRef.current?.scrollToIndex({ index: 1, animated: true });
+          scrollToListIndex(1);
         } else if (!queueReadyRef.current) {
-          listRef.current?.scrollToIndex({ index: Math.max(pages.length, 1), animated: true });
+          scrollToListIndex(Math.max(pages.length, 1));
         } else {
           navigation.goBack();
         }
@@ -283,7 +301,7 @@ export function ReaderScreen() {
       }
       navigation.replace('Reader', { comic: target });
     },
-    [comic, navigation, pages.length, saveProgress],
+    [comic, navigation, pages.length, saveProgress, scrollToListIndex],
   );
 
   useEffect(() => {
@@ -319,17 +337,17 @@ export function ReaderScreen() {
       }
       pageRef.current = next;
       setPage(next);
-      listRef.current?.scrollToIndex({ index: next + 1, animated: true });
+      scrollToListIndex(next + 1);
       persistPage(next);
       if (haptic) {
         void Haptics.selectionAsync();
       }
     },
-    [openNeighbor, pages.length, persistPage],
+    [openNeighbor, pages.length, persistPage, scrollToListIndex],
   );
 
   const toggleDirection = () => {
-    void setReadingDirection(rtl ? 'ltr' : 'rtl');
+    void setSeriesDirection(comic, DIRECTION_CYCLE[direction] ?? 'rtl');
     void Haptics.selectionAsync();
     setUiVisible(true);
   };
@@ -350,13 +368,12 @@ export function ReaderScreen() {
   const onTapRef = useRef(handleTap);
   onTapRef.current = handleTap;
 
-  const renderPage = useCallback(
-    ({ item }: { item: string }) => {
-      if (item === PREV || item === NEXT) {
+  const renderSentinel = useCallback(
+    (item: string, sentinelWidth: number, sentinelHeight: number) => {
         const neighbor = item === NEXT ? neighbors.next : neighbors.prev;
         const goingNext = item === NEXT;
         return (
-          <View style={[styles.sentinel, { width, height }]}>
+          <View style={[styles.sentinel, { width: sentinelWidth, height: sentinelHeight }]}>
             <Text style={styles.sentinelKicker}>{goingNext ? 'SIGUIENTE' : 'ANTERIOR'}</Text>
             <Text style={styles.sentinelTitle}>
               {neighbor
@@ -374,6 +391,17 @@ export function ReaderScreen() {
             </Text>
           </View>
         );
+    },
+    [neighbors.next, neighbors.prev, styles],
+  );
+
+  const toggleUi = useCallback(() => setUiVisible((visible) => !visible), []);
+  const onVerticalIndex = useCallback((index: number) => applyListIndexRef.current(index), []);
+
+  const renderPage = useCallback(
+    ({ item }: { item: string }) => {
+      if (isSentinelItem(item)) {
+        return renderSentinel(item, width, height);
       }
       return (
         <ReaderPage
@@ -386,7 +414,7 @@ export function ReaderScreen() {
         />
       );
     },
-    [width, height, remote, neighbors.next, neighbors.prev, styles],
+    [width, height, remote, renderSentinel],
   );
 
   const onViewableItemsChanged = useRef(
@@ -446,6 +474,22 @@ export function ReaderScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar hidden />
+      {vertical ? (
+        <VerticalReader
+          key="webtoon"
+          ref={verticalRef}
+          data={listData}
+          isSentinel={isSentinelItem}
+          initialPage={pageRef.current}
+          width={width}
+          height={height}
+          remote={remote}
+          scrollEnabled={!barTouching}
+          renderSentinel={renderSentinel}
+          onListIndex={onVerticalIndex}
+          onToggleUi={toggleUi}
+        />
+      ) : (
       <FlatList
         key={rtl ? 'manga' : 'comic'}
         ref={listRef}
@@ -481,6 +525,7 @@ export function ReaderScreen() {
         }}
         renderItem={renderPage}
       />
+      )}
 
       {uiVisible ? (
         <View
@@ -494,8 +539,11 @@ export function ReaderScreen() {
             <Text style={styles.chromeTitle} numberOfLines={1}>
               {comic.series ? `${comic.series} · ${comic.volumeLabel}` : comic.displayName}
             </Text>
-            <Pressable onPress={toggleDirection} style={[styles.modePill, rtl ? styles.modeManga : styles.modeComic]}>
-              <Text style={styles.modePillText}>{rtl ? 'MANGA' : 'CÓMIC'}</Text>
+            <Pressable
+              onPress={toggleDirection}
+              style={[styles.modePill, vertical ? styles.modeWebtoon : rtl ? styles.modeManga : styles.modeComic]}
+            >
+              <Text style={styles.modePillText}>{vertical ? 'WEBTOON' : rtl ? 'MANGA' : 'CÓMIC'}</Text>
             </Pressable>
             <Text style={styles.pageCount}>
               {page + 1}/{pages.length}
@@ -534,7 +582,9 @@ export function ReaderScreen() {
               }}
             />
             <Text style={styles.hint}>
-              {rtl
+              {vertical
+                ? 'Deslizá hacia abajo · tocá arriba o abajo para avanzar · al final, seguí para el siguiente capítulo'
+                : rtl
                 ? 'Pellizcá o doble toque para zoom · al final, deslizá para el siguiente capítulo'
                 : 'Pellizcá o doble toque para zoom · al final, deslizá para el siguiente tomo'}
             </Text>
@@ -637,6 +687,10 @@ function makeStyles(colors: ColorTokens) {
   modeComic: {
     backgroundColor: colors.accent2Soft,
     borderColor: colors.accent2,
+  },
+  modeWebtoon: {
+    backgroundColor: colors.overlay,
+    borderColor: colors.gold,
   },
   modePillText: {
     fontFamily: fonts.displaySemi,

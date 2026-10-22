@@ -2,7 +2,8 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,6 +32,12 @@ function chapterLabel(chapter: RemoteChapter): string {
   return chapter.title ? `${label} · ${chapter.title}` : label;
 }
 
+// Cuántos capítulos se muestran de entrada y cuántos más se suman cada vez
+// que se llega al final del scroll. La lista completa ya está en memoria
+// (listChapters la trae entera), así que "cargar más" es solo mostrar más
+// de lo que ya tenemos — no dispara ningún pedido nuevo a la API.
+const CHAPTERS_PAGE_SIZE = 20;
+
 export function RemoteMangaScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -43,29 +50,39 @@ export function RemoteMangaScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(CHAPTERS_PAGE_SIZE);
   const languageLabel = API_LANGUAGE_LABELS[config.apiLanguage];
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void Promise.all([preview ? Promise.resolve(preview) : getManga(mangaId), listChapters(mangaId)])
-      .then(([nextManga, nextChapters]) => {
+    setVisibleCount(CHAPTERS_PAGE_SIZE);
+    (async () => {
+      try {
+        // Primero resolvemos el manga (o usamos el preview que ya trajo
+        // Explorar) para conocer su contentRating, y recién con eso
+        // pedimos los capítulos — así listChapters puede pedir un solo
+        // rating en vez de probar los 4 a ciegas.
+        const nextManga = preview ?? (await getManga(mangaId));
+        if (cancelled) {
+          return;
+        }
+        setManga(nextManga);
+        const nextChapters = await listChapters(mangaId, nextManga.contentRating);
         if (!cancelled) {
-          setManga(nextManga);
           setChapters(nextChapters);
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'No se pudo abrir este manga.');
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setLoading(false);
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -94,6 +111,21 @@ export function RemoteMangaScreen() {
     return copy;
   }, [chapters, sortAsc]);
 
+  // Al invertir el orden, "los primeros" pasan a ser otros capítulos —
+  // arrancamos de nuevo desde el principio de la lista visible.
+  useEffect(() => {
+    setVisibleCount(CHAPTERS_PAGE_SIZE);
+  }, [sortAsc]);
+
+  const visibleChapters = useMemo(
+    () => sortedChapters.slice(0, visibleCount),
+    [sortedChapters, visibleCount],
+  );
+
+  const loadMoreChapters = useCallback(() => {
+    setVisibleCount((count) => Math.min(count + CHAPTERS_PAGE_SIZE, sortedChapters.length));
+  }, [sortedChapters.length]);
+
   const readCount = useMemo(
     () => chapters.filter((chapter) => isProgressComplete(config.progress[`md:${chapter.id}`])).length,
     [chapters, config.progress],
@@ -101,6 +133,21 @@ export function RemoteMangaScreen() {
 
   const openChapter = (chapter: RemoteChapter) => {
     if (!manga) {
+      return;
+    }
+    if (chapter.externalUrl) {
+      // No hay páginas para pedirle a MangaDex — se lee en el lector
+      // oficial (MangaPlus/Viz). openBrowserAsync usa Chrome Custom Tabs:
+      // técnicamente nunca salís de la tarea de TinMangas (por eso "volver
+      // atrás" te trae de nuevo acá), pero por defecto se ve con la barra
+      // de Chrome de fábrica. Le pasamos los colores del tema para que al
+      // menos visualmente combine con la app en vez de parecer otra app.
+      void WebBrowser.openBrowserAsync(chapter.externalUrl, {
+        toolbarColor: colors.bg,
+        secondaryToolbarColor: colors.surface,
+        showTitle: true,
+        enableDefaultShareMenuItem: false,
+      });
       return;
     }
     setReadingQueue(
@@ -247,12 +294,24 @@ export function RemoteMangaScreen() {
         </View>
       ) : (
         <FlatList
-          data={sortedChapters}
+          data={visibleChapters}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={header}
           ListEmptyComponent={
             <Text style={styles.empty}>No hay capítulos en {languageLabel.toLowerCase()} para este título.</Text>
           }
+          ListFooterComponent={
+            visibleCount < sortedChapters.length ? (
+              <View style={styles.loadMoreHint}>
+                <ActivityIndicator color={colors.accent2} />
+                <Text style={styles.loadMoreText}>
+                  Cargando más capítulos… ({visibleChapters.length}/{sortedChapters.length})
+                </Text>
+              </View>
+            ) : null
+          }
+          onEndReached={loadMoreChapters}
+          onEndReachedThreshold={0.6}
           contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
           showsVerticalScrollIndicator={false}
           initialNumToRender={16}
@@ -260,25 +319,33 @@ export function RemoteMangaScreen() {
           renderItem={({ item }) => {
             const progress = config.progress[`md:${item.id}`];
             const read = isProgressComplete(progress);
+            const external = Boolean(item.externalUrl);
             return (
               <View style={styles.rowWrap}>
                 <Pressable
                   onPress={() => openChapter(item)}
                   onLongPress={() => chapterActions(item)}
                   delayLongPress={280}
-                  style={({ pressed }) => [styles.row, read && styles.rowRead, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    styles.row,
+                    read && styles.rowRead,
+                    external && styles.rowExternal,
+                    pressed && styles.pressed,
+                  ]}
                 >
-                  <View style={styles.badge}>
+                  <View style={[styles.badge, external && styles.badgeExternal]}>
                     <Text style={styles.badgeText}>{item.chapter === '?' ? '—' : item.chapter}</Text>
                   </View>
                   <View style={styles.rowBody}>
                     <Text style={styles.rowTitle}>{chapterLabel(item)}</Text>
                     <Text style={styles.rowMeta}>
-                      {read
-                        ? 'Leído'
-                        : progress
-                          ? `Pág. ${progress.page + 1} de ${progress.total}`
-                          : `${item.pages || '—'} págs. · ${item.language}`}
+                      {external
+                        ? 'Solo en MangaPlus/oficial · toca para abrir'
+                        : read
+                          ? 'Leído'
+                          : progress
+                            ? `Pág. ${progress.page + 1} de ${progress.total}`
+                            : `${item.pages || '—'} págs. · ${item.language}`}
                     </Text>
                   </View>
                 </Pressable>
@@ -452,6 +519,16 @@ function makeStyles(colors: ColorTokens) {
       color: colors.textMuted,
       lineHeight: 22,
     },
+    loadMoreHint: {
+      paddingVertical: 20,
+      alignItems: 'center',
+      gap: 8,
+    },
+    loadMoreText: {
+      fontFamily: fonts.sans,
+      fontSize: 12,
+      color: colors.textMuted,
+    },
     rowWrap: {
       paddingHorizontal: 20,
       marginBottom: 10,
@@ -473,6 +550,10 @@ function makeStyles(colors: ColorTokens) {
       borderColor: colors.accent,
       backgroundColor: colors.accentSoft,
     },
+    rowExternal: {
+      borderColor: colors.gold,
+      borderStyle: 'dashed',
+    },
     pressed: {
       opacity: 0.86,
     },
@@ -485,6 +566,9 @@ function makeStyles(colors: ColorTokens) {
       borderColor: colors.accent2,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    badgeExternal: {
+      borderColor: colors.gold,
     },
     badgeText: {
       fontFamily: fonts.display,

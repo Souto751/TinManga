@@ -14,9 +14,8 @@ a mano (una sola vez) para que funcione de punta a punta.
   de Play Store sin que el usuario toque "Instalar" (ver más abajo el permiso
   de "orígenes desconocidos").
 
-Como el repo es **privado** (lo van a usar conocidos, no querés que quede
-público), todos esos pedidos van con un token de solo lectura — ver la
-sección 4 más abajo.
+El repo es **público**, así que esos pedidos no necesitan credenciales
+(la sección 4 queda solo por si algún día vuelve a ser privado).
 
 Código relevante: `src/update/updater.ts`, `src/context/AppContext.tsx`,
 `src/components/UpdateBanner.tsx`, sección nueva en
@@ -121,9 +120,13 @@ Borrá `keystore.b64` de tu disco después (no lo commitees).
 > -genkeypair`, actualizás los 4 secrets y las 4 propiedades locales — pero
 > ese día vas a tener que reinstalar la app una vez porque cambia la firma.
 
-## 4. Token de lectura para el repo privado
+## 4. Token de lectura (solo si el repo vuelve a ser privado)
 
-Como el repo no es público, la app necesita credenciales para poder leer
+> Hoy el repo es público y **no hace falta**: el workflow compila sin token y
+> la app consulta los releases sin credenciales. Lo que sigue aplica solo si
+> el repo vuelve a ser privado. Ojo: el token queda dentro de cada `.apk`.
+
+Si el repo no es público, la app necesita credenciales para poder leer
 `releases/latest` y descargar los assets. Usamos un **fine-grained personal
 access token** de GitHub, limitado nada más a este repo y de solo lectura —
 no da acceso a nada más de tu cuenta ni permite escribir.
@@ -170,12 +173,16 @@ compilar (paso "Configurar token de lectura para GitHub").
 
 ## 5. Instalar las dependencias nuevas
 
-Estos dos paquetes JS no estaban en el proyecto; hay que agregarlos (esto
+Estos paquetes JS no estaban en el proyecto; hay que agregarlos (esto
 también fija la versión correcta para el SDK 57):
 
 ```bash
-npx expo install expo-intent-launcher expo-constants
+npx expo install expo-intent-launcher expo-constants expo-web-browser
 ```
+
+`expo-web-browser` es para abrir los capítulos "solo en MangaPlus/oficial"
+(los que MangaDex no aloja, típico en series con licencia como One Piece)
+en un navegador in-app, sin salir de TinMangas.
 
 Después de eso, `npx tsc --noEmit` debería pasar limpio. Si algo de la API
 de `expo-file-system`/`expo-intent-launcher` cambió respecto a lo que se usó

@@ -1,4 +1,5 @@
-export type ReadingDirection = 'rtl' | 'ltr';
+/** rtl = manga, ltr = cómic, vertical = webtoon (páginas una debajo de la otra). */
+export type ReadingDirection = 'rtl' | 'ltr' | 'vertical';
 export type ColorScheme = 'dark' | 'light';
 export type TrackingStatus = 'plan' | 'reading' | 'read';
 export type ApiLanguage = 'es' | 'es-la' | 'en';
@@ -32,7 +33,10 @@ export type AppConfig = {
   libraryName: string | null;
   coversFolderUri: string | null;
   coversFolderName: string | null;
+  /** Modo por defecto para series que todavía no tienen uno propio. */
   readingDirection: ReadingDirection;
+  /** Modo elegido para cada serie (clave: seriesDirectionKey), así un webtoon y un manga no se pisan. */
+  seriesDirections: Record<string, ReadingDirection>;
   colorScheme: ColorScheme;
   keepScreenOn: boolean;
   /** Si está en false, Explorar (MangaDex) queda inhabilitado — solo biblioteca local. */

@@ -15,6 +15,7 @@ const defaultConfig = (): AppConfig => ({
   // defecto se leen de izquierda a derecha. El usuario lo puede cambiar a
   // "manga" (derecha a izquierda) desde Ajustes o con el botón del lector.
   readingDirection: 'ltr',
+  seriesDirections: {},
   colorScheme: 'dark',
   keepScreenOn: true,
   onlineMode: true,
@@ -50,6 +51,7 @@ export async function loadConfig(): Promise<AppConfig> {
       colorScheme: parsed.colorScheme === 'light' ? 'light' : 'dark',
       progress,
       seriesCovers: parsed.seriesCovers ?? {},
+      seriesDirections: parsed.seriesDirections ?? {},
       tracking: parsed.tracking ?? seedTracking(progress),
       onlineMode: parsed.onlineMode ?? true,
       apiLanguage: VALID_API_LANGUAGES.includes(parsed.apiLanguage as (typeof VALID_API_LANGUAGES)[number])

@@ -16,12 +16,9 @@ import * as IntentLauncher from 'expo-intent-launcher';
  *    (ACTION_INSTALL_PACKAGE) — el usuario igual tiene que tocar "Instalar",
  *    Android no permite instalar apps fuera de Play Store en silencio.
  *
- * El repo es privado, así que todos los pedidos (metadata + descarga de
- * assets) van con un token de solo lectura. El token NO vive en este
- * archivo: se inyecta como variable de entorno pública de Expo
- * (`EXPO_PUBLIC_GITHUB_TOKEN`, definida en un `.env` local gitignoreado y
- * en un secret de GitHub Actions para el build de CI) y queda inlineado
- * en el bundle JS al compilar. Ver RELEASES.md para cómo generarlo.
+ * El repo es público, así que los pedidos van sin credenciales. Si se
+ * compila con `EXPO_PUBLIC_GITHUB_TOKEN` (solo hace falta si el repo vuelve a
+ * ser privado, ver RELEASES.md), se agrega como token de solo lectura.
  */
 
 const REPO = 'Souto751/TinManga';

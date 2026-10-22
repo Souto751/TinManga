@@ -56,12 +56,27 @@ function coverFromManga(data: {
   return coverUrl(data.id, art?.attributes?.fileName);
 }
 
-async function throttle(): Promise<void> {
-  const wait = MIN_GAP_MS - (Date.now() - lastCall);
-  if (wait > 0) {
-    await sleep(wait);
-  }
-  lastCall = Date.now();
+// Cola real (no solo "mirar el reloj"): listChapters ahora dispara varios
+// pedidos en paralelo (uno por contentRating) y, si dos llamadas a
+// throttle() caen en el mismo tick de JS, las dos leen el mismo `lastCall`
+// antes de que ninguna lo actualice y terminan saliendo casi juntas — el
+// throttling deja de servir justo cuando más hace falta. Encadenando cada
+// llamada detrás de la anterior nos aseguramos de que salgan una por una,
+// separadas por MIN_GAP_MS, sin importar cuántas se disparen "a la vez".
+let throttleChain: Promise<void> = Promise.resolve();
+
+function throttle(): Promise<void> {
+  const turn = throttleChain.then(async () => {
+    const wait = MIN_GAP_MS - (Date.now() - lastCall);
+    if (wait > 0) {
+      await sleep(wait);
+    }
+    lastCall = Date.now();
+  });
+  // Si un turno anterior llegara a rechazar por algo raro, no queremos que
+  // toda la cola quede trabada para siempre.
+  throttleChain = turn.catch(() => undefined);
+  return turn;
 }
 
 async function mdGet<T>(
@@ -99,8 +114,10 @@ async function mdGet<T>(
     });
 
   let response = await request();
-  if (response.status === 429) {
-    await sleep(1600);
+  let retries = 0;
+  while (response.status === 429 && retries < 3) {
+    retries += 1;
+    await sleep(1600 * retries);
     response = await request();
   }
   if (!response.ok) {
@@ -126,6 +143,7 @@ type MangaPayload = {
       status?: string;
       year?: number | null;
       tags?: Array<{ attributes?: { name?: Record<string, string> } }>;
+      contentRating?: string;
     };
     relationships?: Array<{ type: string; attributes?: { fileName?: string } }>;
   }>;
@@ -143,6 +161,7 @@ function mapManga(entry: MangaPayload['data'][number]): RemoteManga {
       .filter(Boolean)
       .slice(0, 8),
     coverUri: coverFromManga(entry),
+    contentRating: entry.attributes.contentRating,
   };
 }
 
@@ -181,12 +200,18 @@ type FeedPayload = {
       translatedLanguage?: string;
       pages?: number;
       publishAt?: string;
+      /** Si tiene valor, el capítulo no está alojado en MangaDex — es
+       * solo un link a un lector oficial externo (MangaPlus/Viz, etc.).
+       * No hay páginas que pedirle a /at-home/server para estos. */
+      externalUrl?: string | null;
     };
   }>;
   total?: number;
 };
 
-export async function listChapters(mangaId: string): Promise<RemoteChapter[]> {
+const CONTENT_RATINGS = ['safe', 'suggestive', 'erotica', 'pornographic'];
+
+async function fetchChapterFeed(mangaId: string, contentRating: string): Promise<RemoteChapter[]> {
   const collected: RemoteChapter[] = [];
   let offset = 0;
   const pageSize = 100;
@@ -199,18 +224,27 @@ export async function listChapters(mangaId: string): Promise<RemoteChapter[]> {
       'translatedLanguage[]': [currentLanguage],
       'order[chapter]': 'asc',
       'order[volume]': 'asc',
-      'contentRating[]': ['safe', 'suggestive', 'erotica', 'pornographic'],
+      'contentRating[]': [contentRating],
     });
     collected.push(
-      ...payload.data.map((entry) => ({
-        id: entry.id,
-        chapter: entry.attributes.chapter || '?',
-        title: entry.attributes.title || '',
-        volume: entry.attributes.volume || '',
-        language: entry.attributes.translatedLanguage || '',
-        pages: entry.attributes.pages ?? 0,
-        publishAt: entry.attributes.publishAt,
-      })),
+      ...payload.data
+        // Capítulos "externos" (link a MangaPlus/Viz/etc., típico en series
+        // con licencia oficial simulpub como One Piece): MangaDex no aloja
+        // sus páginas. Los dejamos en la lista igual (marcados con
+        // externalUrl) para abrirlos en el navegador in-app en vez de en
+        // nuestro lector — solo descartamos los que ni tienen páginas NI
+        // un link a dónde mandar al usuario, esos sí son inservibles.
+        .filter((entry) => entry.attributes.externalUrl || (entry.attributes.pages ?? 0) > 0)
+        .map((entry) => ({
+          id: entry.id,
+          chapter: entry.attributes.chapter || '?',
+          title: entry.attributes.title || '',
+          volume: entry.attributes.volume || '',
+          language: entry.attributes.translatedLanguage || '',
+          pages: entry.attributes.pages ?? 0,
+          publishAt: entry.attributes.publishAt,
+          externalUrl: entry.attributes.externalUrl || undefined,
+        })),
     );
     offset += pageSize;
     const total = payload.total ?? collected.length;
@@ -218,6 +252,28 @@ export async function listChapters(mangaId: string): Promise<RemoteChapter[]> {
       break;
     }
   }
+
+  return collected;
+}
+
+export async function listChapters(
+  mangaId: string,
+  knownContentRating?: string,
+): Promise<RemoteChapter[]> {
+  // El endpoint /feed de MangaDex tiene un bug confirmado a mano contra la
+  // API real: si "contentRating[]" lleva más de un valor DISTINTO en el
+  // mismo pedido, devuelve total:0 aunque el manga sí tenga capítulos con
+  // esos ratings (probado con One Piece y Chainsaw Man — un solo valor
+  // trae los capítulos bien, dos o más siempre da vacío).
+  //
+  // Todos los capítulos de un manga comparten el contentRating del manga,
+  // así que si ya lo sabemos (viene de getManga/searchManga) alcanza con
+  // pedir ESE único valor — 1 sola tanda de pedidos, sin ráfaga y sin
+  // pisar el bug. Si por algún motivo no lo tenemos a mano, probamos los 4
+  // por separado y juntamos los resultados como respaldo.
+  const ratings = knownContentRating ? [knownContentRating] : CONTENT_RATINGS;
+  const perRating = await Promise.all(ratings.map((rating) => fetchChapterFeed(mangaId, rating)));
+  const collected = perRating.flat();
 
   const best = new Map<string, RemoteChapter>();
   for (const chapter of collected) {

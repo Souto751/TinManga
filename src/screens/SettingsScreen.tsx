@@ -93,7 +93,11 @@ export function SettingsScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Dirección de lectura</Text>
+        <Text style={styles.label}>Modo de lectura por defecto</Text>
+        <Text style={styles.hint}>
+          Cada serie recuerda el modo que elijas con el botón del lector. Este es el que usan las series que
+          todavía no tienen uno.
+        </Text>
         <View style={styles.segment}>
           <Pressable
             onPress={() => void setReadingDirection('rtl')}
@@ -112,6 +116,15 @@ export function SettingsScreen() {
               Cómic
             </Text>
             <Text style={styles.segmentHint}>izquierda → derecha</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void setReadingDirection('vertical')}
+            style={[styles.segmentItem, config.readingDirection === 'vertical' && styles.segmentActive]}
+          >
+            <Text style={[styles.segmentText, config.readingDirection === 'vertical' && styles.segmentTextActive]}>
+              Webtoon
+            </Text>
+            <Text style={styles.segmentHint}>vertical ↓</Text>
           </Pressable>
         </View>
       </View>

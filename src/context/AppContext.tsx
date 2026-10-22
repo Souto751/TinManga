@@ -40,6 +40,9 @@ type AppContextValue = {
   pickCoversFolder: () => Promise<void>;
   refreshLibrary: () => Promise<void>;
   setReadingDirection: (direction: ReadingDirection) => Promise<void>;
+  /** Modo con el que se lee esta serie (el suyo o, si no eligió ninguno, el por defecto). */
+  directionFor: (comic: Comic) => ReadingDirection;
+  setSeriesDirection: (comic: Comic, direction: ReadingDirection) => Promise<void>;
   setColorScheme: (scheme: ColorScheme) => Promise<void>;
   setKeepScreenOn: (value: boolean) => Promise<void>;
   setOnlineMode: (value: boolean) => Promise<void>;
@@ -66,6 +69,11 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+/** Clave con la que se guarda el modo de lectura de una serie (local o de MangaDex). */
+export function seriesDirectionKey(comic: Comic): string {
+  return comic.seriesId || comic.seriesKey || comic.id;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [config, setConfig] = useState<AppConfig>({
@@ -74,6 +82,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     coversFolderUri: null,
     coversFolderName: null,
     readingDirection: 'ltr',
+    seriesDirections: {},
     colorScheme: 'dark',
     keepScreenOn: true,
     onlineMode: true,
@@ -207,6 +216,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setReadingDirection = useCallback(async (direction: ReadingDirection) => {
     await persist({ ...configRef.current, readingDirection: direction });
+  }, [persist]);
+
+  const directionFor = useCallback(
+    (comic: Comic) => config.seriesDirections[seriesDirectionKey(comic)] ?? config.readingDirection,
+    [config.seriesDirections, config.readingDirection],
+  );
+
+  const setSeriesDirection = useCallback(async (comic: Comic, direction: ReadingDirection) => {
+    const current = configRef.current;
+    await persist({
+      ...current,
+      seriesDirections: { ...current.seriesDirections, [seriesDirectionKey(comic)]: direction },
+    });
   }, [persist]);
 
   const setColorScheme = useCallback(async (scheme: ColorScheme) => {
@@ -485,6 +507,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pickCoversFolder,
       refreshLibrary,
       setReadingDirection,
+      directionFor,
+      setSeriesDirection,
       setColorScheme,
       setKeepScreenOn,
       setOnlineMode,
@@ -520,6 +544,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pickCoversFolder,
       refreshLibrary,
       setReadingDirection,
+      directionFor,
+      setSeriesDirection,
       setColorScheme,
       setKeepScreenOn,
       setOnlineMode,

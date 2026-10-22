@@ -39,15 +39,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Configurar token de lectura para GitHub (repo privado)
+      # El repo es público: la app consulta los releases sin token. Si algún día
+      # vuelve a ser privado, cargar el secret RELEASE_READ_TOKEN (ver RELEASES.md).
+      - name: Token de lectura (solo si el repo es privado)
         env:
           RELEASE_READ_TOKEN: ${{ secrets.RELEASE_READ_TOKEN }}
         run: |
-          if [ -z "$RELEASE_READ_TOKEN" ]; then
-            echo "Falta el secret RELEASE_READ_TOKEN en el repo. Ver RELEASES.md." >&2
-            exit 1
+          if [ -n "$RELEASE_READ_TOKEN" ]; then
+            echo "EXPO_PUBLIC_GITHUB_TOKEN=$RELEASE_READ_TOKEN" >> .env
           fi
-          echo "EXPO_PUBLIC_GITHUB_TOKEN=$RELEASE_READ_TOKEN" >> .env
 
       - name: Compute version from tag
         id: version
