@@ -229,6 +229,28 @@ export const VerticalReader = forwardRef<VerticalReaderHandle, Props>(function V
     zoomRef.current = value;
   }, []);
 
+  // Mientras hay dos dedos apoyados la lista no se desplaza: si se movía junto
+  // con el pellizco, el punto elegido para el zoom terminaba corriéndose.
+  // Se bloquea al apoyar el segundo dedo (antes de que empiece el gesto) y,
+  // si igual llega algún desplazamiento, se devuelve a la posición fijada.
+  const scrollLock = useRef<number | null>(null);
+  const lockScroll = useCallback(() => {
+    if (scrollLock.current !== null) {
+      return;
+    }
+    scrollLock.current = offsetRef.current;
+    listRef.current?.setNativeProps({ scrollEnabled: false });
+    setPinching(true);
+  }, []);
+  const unlockScroll = useCallback(() => {
+    if (scrollLock.current === null) {
+      return;
+    }
+    scrollLock.current = null;
+    listRef.current?.setNativeProps({ scrollEnabled: true });
+    setPinching(false);
+  }, []);
+
   const handleTap = useCallback(
     (pageY: number) => {
       if (pageY < height * 0.25 || pageY > height * 0.75) {
@@ -251,9 +273,14 @@ export const VerticalReader = forwardRef<VerticalReaderHandle, Props>(function V
       // Punto de la tira que está bajo los dedos: se mantiene ahí mientras se hace zoom.
       anchorX.value = (event.focalX - cx - tx.value) / scale.value;
       anchorY.value = (event.focalY - cy - ty.value) / scale.value;
-      runOnJS(setPinching)(true);
+      runOnJS(lockScroll)();
     })
     .onUpdate((event) => {
+      // Al soltar, casi nunca se levantan los dos dedos a la vez: con uno solo
+      // apoyado el "centro" del pellizco pasa a ser ese dedo y la vista saltaba.
+      if (event.numberOfPointers < 2) {
+        return;
+      }
       const s = Math.min(MAX_ZOOM, Math.max(1, startScale.value * event.scale));
       const maxX = ((s - 1) * width) / 2;
       const maxY = ((s - 1) * height) / 2;
@@ -272,7 +299,7 @@ export const VerticalReader = forwardRef<VerticalReaderHandle, Props>(function V
       }
     })
     .onFinalize(() => {
-      runOnJS(setPinching)(false);
+      runOnJS(unlockScroll)();
     });
 
   // Con zoom, arrastrar de costado recorre el ancho; el deslizamiento vertical sigue siendo de la lista.
@@ -380,7 +407,20 @@ export const VerticalReader = forwardRef<VerticalReaderHandle, Props>(function V
 
   return (
     <GestureDetector gesture={gesture}>
-      <Animated.View style={{ flex: 1, backgroundColor: '#000', overflow: 'hidden' }}>
+      <Animated.View
+        style={{ flex: 1, backgroundColor: '#000', overflow: 'hidden' }}
+        onTouchStart={(event) => {
+          if (event.nativeEvent.touches.length >= 2) {
+            lockScroll();
+          }
+        }}
+        onTouchEnd={(event) => {
+          if (event.nativeEvent.touches.length < 2) {
+            unlockScroll();
+          }
+        }}
+        onTouchCancel={unlockScroll}
+      >
         <Animated.View style={[{ flex: 1 }, zoomStyle]}>
     <FlatList
       ref={listRef}
@@ -398,7 +438,12 @@ export const VerticalReader = forwardRef<VerticalReaderHandle, Props>(function V
       // Si cambia el alto de una página de más arriba (se terminó de medir), la vista no salta.
       maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
       onScroll={(event) => {
-        offsetRef.current = event.nativeEvent.contentOffset.y;
+        const y = event.nativeEvent.contentOffset.y;
+        if (scrollLock.current !== null && Math.abs(y - scrollLock.current) > 0.5) {
+          listRef.current?.scrollToOffset({ offset: scrollLock.current, animated: false });
+          return;
+        }
+        offsetRef.current = y;
       }}
       scrollEventThrottle={32}
       onViewableItemsChanged={onViewableItemsChanged}
